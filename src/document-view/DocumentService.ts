@@ -66,7 +66,19 @@ export class DocumentService implements IDocumentService {
 
     public uploadFile = async (file: File, collectionId: string): Promise<void> => {
         // ... (File validation logic is now here) ...
-        const validation = validateFile(file, { maxSizeBytes: 10 * 1024 * 1024, allowedExtensions: ['.pdf', '.doc', '.docx'] });
+        const validation = validateFile(file, {
+            maxSizeBytes: 10 * 1024 * 1024,
+            allowedExtensions: [
+                '.pdf',
+                '.doc',
+                '.docx',
+                '.md',
+                '.html',
+                '.htm',
+                '.pptx',
+                '.ppt'
+            ],
+        });
         if (!validation.isValid) {
             showToast(validation.error!, 'error');
             return;

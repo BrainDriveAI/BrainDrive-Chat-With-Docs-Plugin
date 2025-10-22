@@ -164,7 +164,7 @@ export class DocumentManagerModal extends React.Component<DocumentManagerModalIn
                                                 type="file"
                                                 ref={this.fileInputRef}
                                                 onChange={this.handleFileSelect}
-                                                accept=".pdf,.doc,.docx"
+                                                accept=".pdf,.doc,.docx,.md,.html,.htm,.pptx,.ppt"
                                                 className="hidden"
                                             />
                                             <button
