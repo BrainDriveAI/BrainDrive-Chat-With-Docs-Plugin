@@ -2291,7 +2291,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       this.currentStreamingAbortController = new AbortController();
 
       // ground to collection - relevance context search
-      const relevantResults = await this.props.dataRepository.getRelevantContent(
+      const contextRetrievalResult = await this.props.dataRepository.getRelevantContent(
         prompt,
         this.props.selectedCollection.id
       );
@@ -2300,10 +2300,11 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       let enhancedPrompt = prompt;
 
       let relevantContext = '';
-      if (relevantResults) {
-        relevantContext = relevantResults.map((result) => result.content).join(", ");
-        // enhancedPrompt += `Relevant context: ${relevantContext}\n\nUser question: ${prompt}`;
-        // Add document context if available (only for AI, not for chat history)
+      if (contextRetrievalResult && contextRetrievalResult.chunks) {
+        relevantContext = contextRetrievalResult.chunks
+          .map((result, idx) => {
+            return `Excerpt: ${idx}\n${result.content}\n\n`;
+          }).join(", ");
         if (relevantContext) {
           enhancedPrompt = `\n${relevantContext}\n\nUser Question: ${prompt}`;
           // Add document context to state
