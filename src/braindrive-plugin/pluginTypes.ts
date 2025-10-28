@@ -60,6 +60,32 @@ export interface DocumentChunk {
     embedding_vector?: number[];
 }
 
+export interface IntentResponse {
+  /** Classified intent type (e.g., "retrieval", "chat", "summary") */
+  type: string;
+  /** Whether backend determined retrieval is required */
+  requires_retrieval: boolean;
+  /** Whether a full collection scan is required */
+  requires_collection_scan: boolean;
+  /** Confidence score (0–1) */
+  confidence: number;
+  /** LLM reasoning or explanation text */
+  reasoning: string;
+}
+
+export interface ContextRetrievalResult {
+  /** Retrieved document chunks relevant to the query */
+  chunks: DocumentChunk[];
+  /** Optional intent classification result */
+  intent: IntentResponse | null;
+  /** Indicates if an answer needs to be generated from context */
+  requires_generation: boolean;
+  /** What type of generation (e.g., "qa", "summary", "none") */
+  generation_type: string;
+  /** Any additional metadata from backend */
+  metadata: Record<string, any>;
+}
+
 export enum ChatSessionStatus {
   ACTIVE = 'active',
   INACTIVE = 'inactive',
