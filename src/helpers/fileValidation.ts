@@ -1,3 +1,5 @@
+import { allowedFileExtensions, maxFileSizeBytes } from "../constants";
+
 export interface FileValidationOptions {
   maxSizeBytes?: number;
   allowedTypes?: string[];
@@ -35,27 +37,15 @@ export function formatFileSize(bytes: number): string {
  */
 export function validateFile(
   file: File,
-  options: FileValidationOptions = {}
 ): FileValidationResult {
-  const {
-    maxSizeBytes = 10 * 1024 * 1024, // 10MB default
-    allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-    allowedExtensions = ['.pdf', '.doc', '.docx']
-  } = options;
-  
+  const maxSizeBytes = maxFileSizeBytes;
+  const allowedExtensions = allowedFileExtensions;
+
   // Check file size
   if (file.size > maxSizeBytes) {
     return {
       isValid: false,
       error: `File "${file.name}" is too large (max ${formatFileSize(maxSizeBytes)})`
-    };
-  }
-  
-  // Check file type
-  if (allowedTypes.length > 0 && !allowedTypes.includes(file.type)) {
-    return {
-      isValid: false,
-      error: `File "${file.name}" has an unsupported type. Allowed types: ${allowedTypes.join(', ')}`
     };
   }
   
