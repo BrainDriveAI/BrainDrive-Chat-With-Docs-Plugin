@@ -10,6 +10,7 @@ import {
 import { DocumentList } from './DocumentList';
 import { showToast } from '../helpers';
 import { DocumentService } from './DocumentService';
+import { allowedFileExtensions } from '../constants';
 
 export class DocumentManagerModal extends React.Component<DocumentManagerModalInjectedProps, DocumentManagerModalState> {
     // service instance
@@ -164,7 +165,7 @@ export class DocumentManagerModal extends React.Component<DocumentManagerModalIn
                                                 type="file"
                                                 ref={this.fileInputRef}
                                                 onChange={this.handleFileSelect}
-                                                accept=".pdf,.doc,.docx,.md,.html,.htm,.pptx,.ppt"
+                                                accept={allowedFileExtensions.join(',')}
                                                 className="hidden"
                                             />
                                             <button

@@ -127,3 +127,27 @@ export const PLUGIN_SERVICE_RUNTIMES = [
 export const CHAT_SERVICE_API_BASE = 'http://127.0.0.1:8000';
 
 export const BRAINDRIVE_CORE_API = 'http://localhost:8005';
+
+// File Upload Constants
+export const maxFileSizeBytes = 10 * 1024 * 1024; // 10MB default
+
+export const allowedFileTypes = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/markdown',
+  'text/html',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.ms-powerpoint',
+];
+
+export const allowedFileExtensions = [
+  '.pdf',
+  '.doc',
+  '.docx',
+  '.md',
+  '.html',
+  '.htm',
+  '.pptx',
+  '.ppt'
+];
