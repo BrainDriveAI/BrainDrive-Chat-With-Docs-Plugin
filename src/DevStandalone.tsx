@@ -210,6 +210,10 @@ const defaultComponentSettings = {
 
 const componentSettings: SettingsService = {};
 
+const userId = "926a985d60a74eacb0a674195a5d9c8c";
+
+const authToken = "";
+
 
 function makeRequestUrl(endpoint: string) {
   if (endpoint.startsWith(CHAT_SERVICE_API_BASE)) {
