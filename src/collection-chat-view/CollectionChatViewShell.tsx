@@ -31,6 +31,7 @@ import {
 
 // Import services
 import { AIService, DocumentService } from '../services';
+import { DocumentManagerModal } from '../document-view/DocumentManagerModal';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -2549,6 +2550,13 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
               
               
               {/* Chat input area */}
+              {/* <div className="chat-input-container">
+                <div className="chat-input-wrapper">
+                  <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
+                      <ChatInput />
+                  </div>
+                </div>
+              </div> */}
                 <ChatInput
                   inputText={inputText}
                   isLoading={isLoading}
@@ -2567,6 +2575,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
                   onPersonaChange={this.handlePersonaChange}
                   onPersonaToggle={this.handlePersonaToggle}
                   showPersonaSelection={false} // Moved to header
+                />
+                <DocumentManagerModal
+                  apiService={services.api}
+                  dataRepository={this.props.dataRepository}
+                  collectionId={selectedCollection.id}
+                  onDocumentListChange={() => console.log("document changed")}
+                  documents={[]}
+                  chatSessions={[]}
                 />
             </>
           )}

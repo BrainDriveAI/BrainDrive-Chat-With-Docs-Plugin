@@ -6,6 +6,8 @@ interface ChatMessagesContextValue {
   isLoading: boolean;
 }
 
+export type ChatStatus = "submitted" | "streaming" | "error";
+
 // Create context
 // add export here
 export const ChatMessagesContext = createContext<ChatMessagesContextValue>({
