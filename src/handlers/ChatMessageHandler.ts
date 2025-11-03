@@ -3,7 +3,7 @@
  * Manages message lifecycle and user interactions
  */
 
-import { ChatMessage } from '../types';
+import { ChatMessage } from '../braindrive-plugin/pluginTypes';
 import { generateId } from '../utils';
 import { MESSAGE_CONFIG, LOADING_MESSAGES } from '../constants';
 

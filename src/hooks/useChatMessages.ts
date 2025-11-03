@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { ChatMessage } from '../types';
+import { ChatMessage } from '../braindrive-plugin/pluginTypes';
 import { generateId } from '../utils';
 
 export const useChatMessages = () => {

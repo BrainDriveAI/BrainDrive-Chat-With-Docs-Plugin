@@ -19,13 +19,13 @@ export const DocumentListItem: React.FC<ComponentProps> = ({document, onDocument
     const getStatusColor = (status: DocumentStatus) => {
         switch (status) {
             case DocumentStatus.PROCESSED:
-                return 'bg-green-100 text-green-800';
+                return 'ditem-status-badge ditem-status-processed';
             case DocumentStatus.PROCESSING:
-                return 'bg-yellow-100 text-yellow-800';
+                return 'ditem-status-badge ditem-status-processing';
             case DocumentStatus.FAILED:
-                return 'bg-red-100 text-red-800';
+                return 'ditem-status-badge ditem-status-failed';
             default:
-                return 'bg-gray-100 text-gray-800';
+                return 'ditem-status-badge ditem-status-default';
         }
     }
     
@@ -103,22 +103,22 @@ export const DocumentListItem: React.FC<ComponentProps> = ({document, onDocument
     }
     
     return (
-        <div className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-sm transition-shadow">
+        <div className="ditem-card">
             <div className="flex items-start justify-between">
                 <div className="flex items-start space-x-3 flex-1">
                     <div className="flex-shrink-0">
                         <i data-lucide={fileIcon} className="h-8 w-8 text-gray-400"></i>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <h5 className="text-sm font-medium text-gray-900 truncate">
+                        <h5 className="ditem-title truncate">
                             {document.original_filename}
                         </h5>
-                        <div className="mt-1 flex items-center space-x-4 text-xs text-gray-500">
+                        <div className="ditem-meta">
                             <span>{fileSize}</span>
                             <span>{document.document_type.toUpperCase()}</span>
                             {document.chunk_count && <span>{document.chunk_count} chunks</span>}
                         </div>
-                        <div className="mt-2 text-xs text-gray-500">
+                        <div className="ditem-dates">
                             <span>Uploaded: {formatDate(document.created_at)}</span>
                             {document.processed_at && (
                                 <span className="ml-4">Processed: {processedDate}</span>
@@ -130,14 +130,14 @@ export const DocumentListItem: React.FC<ComponentProps> = ({document, onDocument
                     {getStatusElement()}
                     <div className="flex space-x-1">
                         <button
-                            className="p-1 text-gray-400 hover:text-gray-600" 
+                            className="ditem-action-btn" 
                             title={`Download ${document.original_filename}`}
                         >
                             <Download className="h-4 w-4" />
                         </button>
                         <button
                             onClick={() => onDocumentDelete(document.id, document.original_filename)}
-                            className="p-1 text-gray-400 hover:text-red-600"
+                            className="ditem-action-btn danger"
                             title={`Delete ${document.original_filename}`}
                         >
                             <Trash2 className="h-4 w-4" />

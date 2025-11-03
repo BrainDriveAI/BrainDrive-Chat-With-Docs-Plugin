@@ -23,7 +23,7 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
     // Direct call for service checks
     const checkAllServices = () => pluginService.checkAllServices();
     return (
-        <div className="bg-white shadow-sm border-b">
+        <div className="dark:bg-gray-900 shadow-sm border-b border-gray-200 dark:border-gray-700">
             <div className="max-w-7xl mx-auto px-4 py-4">
                 <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
@@ -31,14 +31,14 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
                         {currentView !== ViewType.COLLECTIONS && (
                             <button
                                 onClick={handleBack}
-                                className="flex items-center text-gray-600 hover:text-gray-900"
+                                className="flex items-center hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
                                 disabled={!areServicesReady}
                             >
                                 <ArrowLeft className="h-5 w-5 mr-2" />
                                 Back
                             </button>
                         )}
-                        <h1 className="text-base font-medium text-gray-500 mb-0">
+                        <h1 className="text-base font-medium dark:text-gray-300 mb-0">
                             {currentView === ViewType.COLLECTIONS && 'Collections'}
                             {currentView === ViewType.DOCUMENTS && `Documents - ${collectionName}`}
                             {currentView === ViewType.CHAT && `Chat with ${collectionName} collection`}
@@ -58,7 +58,7 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
                         {currentView !== ViewType.SETTINGS && (
                             <button
                                 onClick={() => handleViewChange(ViewType.SETTINGS)}
-                                className="p-2 rounded-full text-gray-600 hover:bg-gray-100"
+                                className="p-2 rounded-full hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
                                 title="Settings"
                                 disabled={!areServicesReady}
                             >

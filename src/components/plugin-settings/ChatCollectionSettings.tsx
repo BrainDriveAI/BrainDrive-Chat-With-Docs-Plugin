@@ -516,8 +516,8 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
         
         if (!config || !this.shouldShowField(fieldName)) return null;
 
-        const baseClasses = `mt-1 block w-full rounded-md border shadow-sm px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
-        error ? 'border-red-300 focus:border-red-500' : 'border-gray-300 focus:border-blue-500'
+        const baseClasses = `mt-1 block w-full rounded-md border shadow-sm px-3 py-2 text-sm transition-colors ccs-input ${
+        error ? 'border-red-300' : ''
         }`;
 
         let inputElement;
@@ -618,7 +618,7 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
         return (
             <div key={fieldName} className="space-y-2">
                 {inputElement}
-                <p className="text-xs text-gray-500 flex items-start space-x-1">
+                <p className="text-xs ccs-help flex items-start space-x-1">
                     <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
                     <span>{config.description}</span>
                 </p>
@@ -629,12 +629,12 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
 
         return (
         <div key={fieldName} className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-sm font-medium ccs-label">
                 {config.label}
                 {config.required && <span className="text-red-500 ml-1">*</span>}
             </label>
             {inputElement}
-            <p className="text-xs text-gray-500 flex items-start space-x-1">
+            <p className="text-xs ccs-help flex items-start space-x-1">
                 <Info className="h-3 w-3 mt-0.5 flex-shrink-0" />
                 <span>{config.description}</span>
             </p>
@@ -654,8 +654,8 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
         if (visibleFields.length === 0) return null;
 
         return (
-        <div key={sectionKey} className="bg-white rounded-lg border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+        <div key={sectionKey} className="p-6 ccs-card">
+            <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2 ccs-card-title">
                 <span>{section.icon}</span>
                 <span>{section.title}</span>
             </h3>
@@ -671,11 +671,11 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
         const isProcessing = isSaving || isRestarting;
 
         return (
-            <div className="space-y-6">
-                <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
+        <div className="space-y-6">
+                <div className="ccs-info p-4 mb-6">
                     <div className="flex">
                         <Info className="h-5 w-5 text-blue-400 mr-2 flex-shrink-0 mt-0.5" />
-                        <p className="text-sm text-blue-700">
+                        <p className="text-sm">
                             These settings configure your document processing microservice. 
                             Use "Save & Restart" to apply changes immediately, or "Save Only" to save without restarting the service.
                         </p>
@@ -684,7 +684,7 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
 
                 {Object.keys(SECTIONS).map(sectionKey => this.renderSection(sectionKey))}
 
-                <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+                <div className="flex items-center justify-between pt-6 ccs-divider">
                     <div className="flex-1">
                         {success && (
                         <div className="flex items-center text-green-600">
@@ -775,12 +775,12 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
         const { isLoading, error } = this.state;
 
         return (
-        <div className="max-w-4xl mx-auto p-6">
+        <div className="max-w-4xl mx-auto p-6 ccs-container">
             <div className="mb-6">
-            <h1 className="text-xl font-bold text-gray-900 mb-2">
+            <h1 className="text-xl font-bold mb-2">
                 Plugin Service Runtime Settings
             </h1>
-            <p className="text-gray-600">
+            <p className="ccs-help">
                 Configure your LLM providers, document processing, and retrieval settings
             </p>
             </div>
@@ -788,12 +788,12 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
             {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600 mb-4" />
-                <p className="text-gray-600">Loading settings...</p>
+                <p className="ccs-help">Loading settings...</p>
             </div>
             ) : error && !this.state.settings ? (
             <div className="flex flex-col items-center justify-center py-12">
                 <AlertCircle className="h-8 w-8 text-red-500 mb-4" />
-                <p className="text-gray-600">{error}</p>
+                <p className="ccs-help">{error}</p>
             </div>
             ) : (
             this.renderForm()

@@ -16,11 +16,11 @@ export const DocumentList: React.FC<ComponentProps> = ({
 	maxHeight = "max-h-96"
 }) => {
     return (
-        <div className="bg-white rounded-lg">
+        <div className="dlist-container">
             {documents.length === 0 ? (
                 <NoDocuments />
             ) : (
-              <div className={`h-full ${maxHeight} space-y-3 overflow-y-auto`}>
+              <div className={`dlist-scroll ${maxHeight} space-y-3`}>
                 {documents.map((doc) => (
                   <DocumentListItem key={doc.id} document={doc} onDocumentDelete={onDocumentDelete} />
                 ))}

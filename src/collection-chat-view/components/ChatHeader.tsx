@@ -7,8 +7,7 @@ import SearchableDropdown, {
   DropdownOption
 } from './SearchableDropdown';
 
-import { DocumentManagerModal } from '../../document-view/DocumentManagerModal';
-import { DocumentService } from '../../document-view/DocumentService';
+// Removed DocumentManagerModal placement; moved to CollectionChatViewShell
 import { DataRepository } from '../../braindrive-plugin/DataRepository';
 
 interface ChatHeaderProps {
@@ -51,15 +50,12 @@ interface ChatHeaderState {
 }
 
 class ChatHeader extends React.Component<ChatHeaderProps, ChatHeaderState> {
-  private documentService: DocumentService;
 
   private menuButtonRef: HTMLButtonElement | null = null;
   private menuRef: HTMLDivElement | null = null;
   constructor(props: ChatHeaderProps) {
     super(props);
     this.state = { isMenuOpen: false };
-
-    this.documentService = new DocumentService(props.apiService);
   }
 
   componentDidMount(): void {
@@ -204,15 +200,6 @@ class ChatHeader extends React.Component<ChatHeaderProps, ChatHeaderState> {
               />
             </div>
           )}
-
-          <DocumentManagerModal
-            apiService={this.props.apiService}
-            dataRepository={this.props.dataRepository}
-            collectionId={selectedCollection.id}
-            onDocumentListChange={() => console.log("document changed")}
-            documents={[]}
-            chatSessions={[]}
-          />
 
           {/* Middle Section - Persona Selection */}
           {showPersonaSelection && (

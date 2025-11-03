@@ -1,6 +1,7 @@
 import React from 'react';
 import './BrainDriveChatWithDocs.css';
 import { Loader2, AlertCircle } from 'lucide-react';
+// import { ChatMessagesProvider } from './collection-chat-view/context/chat-messages-provider';
 import { CollectionViewShell } from './collection-view/CollectionViewShell';
 import { CollectionChatViewShell } from './collection-chat-view/CollectionChatViewShell';
 import {
@@ -143,7 +144,7 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
         const areServicesReady = this.pluginService.areServicesReady(); 
 
         return (
-            <div className="chat-collections-plugin-content">
+            <div className="chat-collections-plugin-content dark:bg-gray-900">
                 {/* Header */}
                 <PluginHeader
                     pluginService={this.pluginService}
@@ -195,7 +196,7 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
         const { currentTheme, isInitializing, error } = this.state;
         
         return (
-            <div className={`plugin-template chat-collections-plugin ${currentTheme === 'dark' ? 'dark-theme' : ''}`}>
+            <div className={`plugin-template chat-collections-plugin ${currentTheme === 'dark' ? 'dark-theme dark' : ''}`}>
                 {isInitializing ? (
                     this.renderLoading()
                 ) : error && !this.state.collections.length ? (

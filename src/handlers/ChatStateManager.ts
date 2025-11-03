@@ -3,7 +3,8 @@
  * Handles state updates, validation, and persistence
  */
 
-import { ChatMessage, ModelInfo, PersonaInfo, ConversationWithPersona } from '../types';
+import { ModelInfo, PersonaInfo, ConversationWithPersona } from '../types';
+import { ChatMessage } from '../braindrive-plugin/pluginTypes';
 import { CollectionChatState } from '../collection-chat-view/chatViewTypes';
 import { SETTINGS_KEYS } from '../constants';
 

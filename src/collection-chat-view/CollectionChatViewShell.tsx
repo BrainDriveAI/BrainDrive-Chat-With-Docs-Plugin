@@ -31,6 +31,7 @@ import {
 
 // Import services
 import { AIService, DocumentService } from '../services';
+import { DocumentManagerModal } from '../document-view/DocumentManagerModal';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -2290,38 +2291,49 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       // Create abort controller for streaming
       this.currentStreamingAbortController = new AbortController();
 
+      // Build recent chat history for contextualization (exclude system/context-only messages)
+      const history = this.state.messages
+        .filter(m => !m.isDocumentContext && !(m as any).isRetrievedContext)
+        .slice(-6) // last ~3 turns (user+assistant pairs)
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' as const : 'assistant' as const,
+          content: m.content,
+        }));
+
       // ground to collection - relevance context search
-      const relevantResults = await this.props.dataRepository.getRelevantContent(
+      const contextRetrievalResult = await this.props.dataRepository.getRelevantContent(
         prompt,
-        this.props.selectedCollection.id
+        this.props.selectedCollection.id,
+        history
       );
 
       // Perform context search
       let enhancedPrompt = prompt;
 
       let relevantContext = '';
-      if (relevantResults) {
-        relevantContext = relevantResults.map((result) => result.content).join(", ");
-        // enhancedPrompt += `Relevant context: ${relevantContext}\n\nUser question: ${prompt}`;
-        // Add document context if available (only for AI, not for chat history)
+      if (contextRetrievalResult && contextRetrievalResult.chunks) {
+        relevantContext = contextRetrievalResult.chunks
+          .map((result, idx) => {
+            return `Excerpt: ${idx}\n${result.content}\n\n`;
+          }).join(", ");
         if (relevantContext) {
           enhancedPrompt = `\n${relevantContext}\n\nUser Question: ${prompt}`;
-          // Add document context to state
           this.setState({ documentContext: relevantContext }, () => {
-            // Add a message to show the documents were processed
-            const documentMessage: ChatMessage = {
-              id: generateId('documents'),
+            // Add retrieved chunks preview message to UI
+            const retrievedMessage: ChatMessage = {
+              id: generateId('retrieval'),
               sender: 'ai',
               content: '',
               timestamp: new Date().toISOString(),
-              isDocumentContext: true,
-              documentData: {
-                results: [],
+              isRetrievedContext: true,
+              retrievalData: {
+                chunks: contextRetrievalResult.chunks as any,
                 context: relevantContext,
-              }
+                intent: contextRetrievalResult.intent,
+                metadata: contextRetrievalResult.metadata,
+              },
             };
-
-            this.addMessageToChat(documentMessage);
+            this.addMessageToChat(retrievedMessage);
           });
         }
       }
@@ -2548,6 +2560,13 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
               
               
               {/* Chat input area */}
+              {/* <div className="chat-input-container">
+                <div className="chat-input-wrapper">
+                  <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
+                      <ChatInput />
+                  </div>
+                </div>
+              </div> */}
                 <ChatInput
                   inputText={inputText}
                   isLoading={isLoading}
@@ -2567,6 +2586,16 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
                   onPersonaToggle={this.handlePersonaToggle}
                   showPersonaSelection={false} // Moved to header
                 />
+                <div className="pl-4">
+                  <DocumentManagerModal
+                    apiService={services.api}
+                    dataRepository={this.props.dataRepository}
+                    collectionId={selectedCollection.id}
+                    onDocumentListChange={() => console.log("document changed")}
+                    documents={[]}
+                    chatSessions={[]}
+                  />
+                </div>
             </>
           )}
           
