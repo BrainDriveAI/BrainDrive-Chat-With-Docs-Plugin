@@ -2291,10 +2291,20 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       // Create abort controller for streaming
       this.currentStreamingAbortController = new AbortController();
 
+      // Build recent chat history for contextualization (exclude system/context-only messages)
+      const history = this.state.messages
+        .filter(m => !m.isDocumentContext && !(m as any).isRetrievedContext)
+        .slice(-6) // last ~3 turns (user+assistant pairs)
+        .map(m => ({
+          role: m.sender === 'user' ? 'user' as const : 'assistant' as const,
+          content: m.content,
+        }));
+
       // ground to collection - relevance context search
       const contextRetrievalResult = await this.props.dataRepository.getRelevantContent(
         prompt,
-        this.props.selectedCollection.id
+        this.props.selectedCollection.id,
+        history
       );
 
       // Perform context search

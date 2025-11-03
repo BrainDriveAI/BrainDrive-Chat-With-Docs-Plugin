@@ -62,14 +62,31 @@ export class DataRepository {
         return apiCall(this.apiService, this.apiBaseUrl, `/chat/messages?session_id=${sessionId}`, 'GET');
     }
 
-    public getRelevantContent = async (query: string, collectionId: string): Promise<ContextRetrievalResult> => {
+    public getRelevantContent = async (
+        query: string,
+        collectionId: string,
+        chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
+    ): Promise<ContextRetrievalResult> => {
         const searchData = {
             query_text: query,
             collection_id: collectionId,
-            top_k: 7,
-            use_hybrid: true,
-            filters: {
-                min_similarity: 0.8,
+            chat_history: chatHistory,
+            config: {
+                use_chat_history: true,
+                max_history_turns: 3,
+                top_k: 7,
+                use_hybrid: true,
+                alpha: 0.5,
+                use_intent_classification: true,
+                query_transformation: {
+                    enabled: true,
+                    methods: [
+                        // Let backend default handle if omitted; leaving empty uses defaults
+                    ]
+                },
+                filters: {
+                    min_similarity: 0.8,
+                }
             }
         };
         return apiCall(this.apiService, this.apiBaseUrl, '/search/', 'POST', searchData)
