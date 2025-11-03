@@ -138,26 +138,26 @@ export class DocumentManagerModal extends React.Component<DocumentManagerModalIn
                     {/* Project files button and sessions list */}
                     <button
                         onClick={this.toggleModal}
-                        className="bg-gray-100 hover:bg-gray-200 px-4 py-2 rounded-lg shadow-sm flex items-center space-x-2"
+                        className="dmm-trigger"
                     >
                         <span className="font-medium">Project files</span>
-                        <span className="bg-blue-500 text-white rounded-full px-2 text-sm">
+                        <span className="dmm-badge">
                             {documents.length}
                         </span>
                     </button>
 
                     {/* Documents modal */}
                     {showModal && (
-                        <div className="fixed inset-0 bg-[rgba(115, 112, 112, 0.70)] dark:bg-[rgba(37, 36, 69, 0.7)] z-40 flex items-center justify-center backdrop-blur-sm bg-white/30">
-                            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-4xl w-full mx-4 relative z-50">
-                                <div className="flex justify-between items-center border-b px-6 py-4">
-                                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Project Files</h3>
-                                    <button onClick={this.toggleModal} className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300">
+                        <div className="dmm-backdrop">
+                            <div className="dmm-modal relative z-50">
+                                <div className="dmm-modal-header">
+                                    <h3 className="dmm-title">Project Files</h3>
+                                    <button onClick={this.toggleModal} className="dmm-close">
                                         <X className="h-5 w-5" />
                                     </button>
                                 </div>
 
-                                <div className="p-6 text-gray-600 dark:text-gray-300">
+                                <div className="dmm-body">
                                     <div className="flex justify-between items-center mb-4">
                                         <h4 className="text-md font-medium">Documents</h4>
                                         <div>
@@ -171,7 +171,7 @@ export class DocumentManagerModal extends React.Component<DocumentManagerModalIn
                                             <button
                                                 onClick={() => this.fileInputRef.current?.click()}
                                                 disabled={uploading}
-                                                className="bg-blue-500 hover:bg-blue-700 text-white px-3 py-2 rounded-lg flex items-center text-sm disabled:opacity-50"
+                                                className="dmm-upload-btn"
                                             >
                                                 {uploading
                                                     ? <Loader2 className="h-4 w-4 mr-2 animate-spin" />
