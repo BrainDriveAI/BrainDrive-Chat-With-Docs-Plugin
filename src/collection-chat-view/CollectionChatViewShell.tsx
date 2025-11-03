@@ -2308,22 +2308,22 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
           }).join(", ");
         if (relevantContext) {
           enhancedPrompt = `\n${relevantContext}\n\nUser Question: ${prompt}`;
-          // Add document context to state
           this.setState({ documentContext: relevantContext }, () => {
-            // Add a message to show the documents were processed
-            const documentMessage: ChatMessage = {
-              id: generateId('documents'),
+            // Add retrieved chunks preview message to UI
+            const retrievedMessage: ChatMessage = {
+              id: generateId('retrieval'),
               sender: 'ai',
               content: '',
               timestamp: new Date().toISOString(),
-              isDocumentContext: true,
-              documentData: {
-                results: [],
+              isRetrievedContext: true,
+              retrievalData: {
+                chunks: contextRetrievalResult.chunks as any,
                 context: relevantContext,
-              }
+                intent: contextRetrievalResult.intent,
+                metadata: contextRetrievalResult.metadata,
+              },
             };
-
-            this.addMessageToChat(documentMessage);
+            this.addMessageToChat(retrievedMessage);
           });
         }
       }

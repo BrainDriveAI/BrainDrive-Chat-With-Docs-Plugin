@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChatMessage, SearchResult } from '../../types';
+import { ChatMessage, SearchResult } from '../../braindrive-plugin/pluginTypes';
+import RetrievedChunksPreview from './RetrievedChunksPreview';
 import { formatTimestamp } from '../../utils';
 import EnhancedCodeBlock from './EnhancedCodeBlock';
 import ThinkingBlock from './ThinkingBlock';
@@ -50,6 +51,7 @@ interface ChatHistoryProps {
 interface ChatHistoryState {
   expandedSearchResults: Set<string>;
   expandedDocumentContext: Set<string>;
+  expandedRetrievedContext: Set<string>;
 }
 
 class ChatHistory extends React.Component<ChatHistoryProps, ChatHistoryState> {
@@ -57,7 +59,8 @@ class ChatHistory extends React.Component<ChatHistoryProps, ChatHistoryState> {
     super(props);
     this.state = {
       expandedSearchResults: new Set(),
-      expandedDocumentContext: new Set()
+      expandedDocumentContext: new Set(),
+      expandedRetrievedContext: new Set()
     };
   }
 
@@ -112,6 +115,21 @@ class ChatHistory extends React.Component<ChatHistoryProps, ChatHistoryState> {
         newSet.add(messageId);
       }
       return { expandedDocumentContext: newSet };
+    });
+  };
+
+  /**
+   * Toggle retrieved context expansion
+   */
+  toggleRetrievedContext = (messageId: string) => {
+    this.setState(prevState => {
+      const newSet = new Set(prevState.expandedRetrievedContext);
+      if (newSet.has(messageId)) {
+        newSet.delete(messageId);
+      } else {
+        newSet.add(messageId);
+      }
+      return { expandedRetrievedContext: newSet } as Pick<ChatHistoryState, keyof ChatHistoryState>;
     });
   };
 
@@ -186,6 +204,49 @@ class ChatHistory extends React.Component<ChatHistoryProps, ChatHistoryState> {
                 <div className="document-content">
                   {documentData.context}
                 </div>
+              </div>
+            )}
+          </div>
+          <div className="message-meta">
+            <span className="message-timestamp">{formatTimestamp(message.timestamp)}</span>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  /**
+   * Render retrieved chunks context message
+   */
+  renderRetrievedContext = (message: ChatMessage) => {
+    const { retrievalData } = message;
+    if (!retrievalData) return null;
+
+    const isExpanded = this.state.expandedRetrievedContext.has(message.id);
+    const { chunks } = retrievalData;
+
+    return (
+      <div key={message.id} className="message message-ai message-retrieved-context">
+        <div className="message-bubble">
+          <div className="message-body">
+            <div className="retrieved-context-header">
+              <div className="retrieved-context-summary">
+                <span className="retrieved-icon">🔎</span>
+                <span className="retrieved-count">{chunks.length} retrieved excerpt{chunks.length === 1 ? '' : 's'}</span>
+              </div>
+              <button
+                onClick={() => this.toggleRetrievedContext(message.id)}
+                className="retrieved-toggle-btn"
+                title={isExpanded ? 'Hide retrieved context' : 'Show retrieved context'}
+              >
+                <span className="retrieved-toggle-text">{isExpanded ? 'Hide' : 'Show'}</span>
+                <span className={`retrieved-toggle-icon ${isExpanded ? 'expanded' : ''}`}>{isExpanded ? '▼' : '▶'}</span>
+              </button>
+            </div>
+
+            {isExpanded && (
+              <div className="retrieved-context-content">
+                <RetrievedChunksPreview chunks={chunks} intent={message.retrievalData?.intent} metadata={message.retrievalData?.metadata} />
               </div>
             )}
           </div>
@@ -274,6 +335,11 @@ class ChatHistory extends React.Component<ChatHistoryProps, ChatHistoryState> {
     // Handle document context messages separately
     if (message.isDocumentContext) {
       return this.renderDocumentContext(message);
+    }
+
+    // Handle retrieved context messages separately
+    if (message.isRetrievedContext) {
+      return this.renderRetrievedContext(message);
     }
 
     // Handle thinking tags in content

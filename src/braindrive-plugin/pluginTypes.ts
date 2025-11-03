@@ -48,6 +48,26 @@ export interface Document {
   chunk_count: number;
 }
 
+export interface DocumentChunkMetadata {
+  created_at?: string;
+  start_char?: number;
+  end_char?: number;
+  token_count?: number;
+  document_filename?: string;
+  document_type?: string;
+  chunk_token_count?: number;
+  chunk_char_count?: number;
+  processing_method?: string;
+  context_prefix?: string;
+  has_context?: boolean;
+  bm25_score?: number;
+  rrf_score?: number;
+  fusion_method?: string;
+  found_in_vector?: boolean;
+  found_in_bm25?: boolean;
+  [key: string]: any;
+}
+
 export interface DocumentChunk {
     id: string;
     document_id: string;
@@ -56,7 +76,7 @@ export interface DocumentChunk {
     chunk_index: number;
     chunk_type: string;
     parent_chunk_id?: string;
-    metadata: object;
+    metadata: DocumentChunkMetadata;
     embedding_vector?: number[];
 }
 
@@ -104,6 +124,15 @@ export interface ChatSession {
   message_count?: number;
 }
 
+// Interface for web search
+export interface SearchResult {
+  title: string;
+  url: string;
+  content: string;
+  engine?: string;
+  score?: number;
+}
+
 export interface ChatMessage {
   id: string;
   sender: 'user' | 'ai';
@@ -117,12 +146,30 @@ export interface ChatMessage {
   canContinue?: boolean;
   canRegenerate?: boolean;
   isCutOff?: boolean;
+
+  // Search results
+  isSearchResults?: boolean;
+  searchData?: {
+    query: string;
+    results: SearchResult[];
+    scrapedContent?: any;
+    totalResults: number;
+    successfulScrapes?: number;
+  };
   
   // Document context
   isDocumentContext?: boolean;
   documentData?: {
     results: DocumentProcessingResult[];
     context: string;
+  };
+  // Retrieved chunks context (collection retrieval)
+  isRetrievedContext?: boolean;
+  retrievalData?: {
+    chunks: DocumentChunk[];
+    context: string;
+    intent?: IntentResponse | null;
+    metadata?: Record<string, any>;
   };
   // Markdown toggle
   showRawMarkdown?: boolean;
