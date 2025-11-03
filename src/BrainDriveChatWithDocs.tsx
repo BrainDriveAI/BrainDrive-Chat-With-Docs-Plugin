@@ -1,7 +1,7 @@
 import React from 'react';
 import './BrainDriveChatWithDocs.css';
 import { Loader2, AlertCircle } from 'lucide-react';
-import { ChatMessagesProvider } from './collection-chat-view/context/chat-messages-provider';
+// import { ChatMessagesProvider } from './collection-chat-view/context/chat-messages-provider';
 import { CollectionViewShell } from './collection-view/CollectionViewShell';
 import { CollectionChatViewShell } from './collection-chat-view/CollectionChatViewShell';
 import {
@@ -177,13 +177,11 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
                             />
                         )}
                         {currentView === ViewType.CHAT && selectedCollection && (
-                            <ChatMessagesProvider>
-                                <CollectionChatViewShell
-                                    services={services}
-                                    dataRepository={this.pluginService.getDataRepository()}
-                                    selectedCollection={selectedCollection}
-                                />
-                            </ChatMessagesProvider>
+                            <CollectionChatViewShell
+                                services={services}
+                                dataRepository={this.pluginService.getDataRepository()}
+                                selectedCollection={selectedCollection}
+                            />
                         )}
                         {currentView === ViewType.SETTINGS && (
                             <ChatCollectionsSettings services={services} />

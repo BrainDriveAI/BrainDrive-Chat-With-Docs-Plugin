@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react';
 // Assuming 'types' contains ConversationInfo, ChatMessage, Services, and ApiService
-import { ConversationInfo, ChatMessage, Services } from '../types'; 
+import { ConversationInfo, Services } from '../types'; 
+import { ChatMessage } from '../braindrive-plugin/pluginTypes';
 import { generateId } from '../utils';
 
 // 🚀 Helper type to handle unpredictable API response wrappers

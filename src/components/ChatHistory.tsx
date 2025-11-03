@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { ChatMessage, SearchResult } from '../types';
+import { ChatMessage, SearchResult } from '../braindrive-plugin/pluginTypes';
 import { formatTimestamp } from '../utils';
 import EnhancedCodeBlock from './EnhancedCodeBlock';
 import ThinkingBlock from './ThinkingBlock';

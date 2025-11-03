@@ -2586,14 +2586,16 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
                   onPersonaToggle={this.handlePersonaToggle}
                   showPersonaSelection={false} // Moved to header
                 />
-                <DocumentManagerModal
-                  apiService={services.api}
-                  dataRepository={this.props.dataRepository}
-                  collectionId={selectedCollection.id}
-                  onDocumentListChange={() => console.log("document changed")}
-                  documents={[]}
-                  chatSessions={[]}
-                />
+                <div className="pl-4">
+                  <DocumentManagerModal
+                    apiService={services.api}
+                    dataRepository={this.props.dataRepository}
+                    collectionId={selectedCollection.id}
+                    onDocumentListChange={() => console.log("document changed")}
+                    documents={[]}
+                    chatSessions={[]}
+                  />
+                </div>
             </>
           )}
           
