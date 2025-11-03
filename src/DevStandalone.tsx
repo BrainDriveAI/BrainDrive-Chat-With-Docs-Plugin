@@ -210,16 +210,14 @@ const defaultComponentSettings = {
 
 const componentSettings: SettingsService = {};
 
-const userId = "1a337d8bc08d4fddbcf7f1f79349f4da";
-
-const authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1NmU4YzhhZGE3YTI0MTQ5OWNkYmQ1MjYzNDc1NmMyMCIsImlhdCI6MTc2MDQyODgyNC40OTQ3OTEsImV4cCI6MTc2MDQ1NzYyNC40OTUzNTh9.zxGWPp61dFc66O5fc0-0KAamIVJRVIm3jwVOg3z3dTw";
-
 
 function makeRequestUrl(endpoint: string) {
   if (endpoint.startsWith(CHAT_SERVICE_API_BASE)) {
     return endpoint;
-  } else if (endpoint.startsWith(BRAINDRIVE_CORE_API)) {
+  } else if (endpoint.startsWith(BRAINDRIVE_CORE_API) && !endpoint.includes('user_id')) {
     return `${endpoint}?user_id=${userId}`;
+  } else if (endpoint.startsWith(BRAINDRIVE_CORE_API) && endpoint.includes('user_id')) {
+    return `${endpoint}`;
   } else {
     return `${BRAINDRIVE_CORE_API}${endpoint}?user_id=${userId}`;
   }
@@ -295,13 +293,22 @@ const componentServices: Services = {
       return await response.json();
     },
     put: async (url: string, data: any): Promise<any> => {
-      console.log('Mock API PUT:', url, data);
-      return {
-        data: { success: true },
-        status: 200,
-        responseTime: Math.floor(Math.random() * 100) + 50,
-        timestamp: new Date().toISOString()
-      };
+      console.log(`Making API PUT request to: ${url}`);
+      const apiEndpoint = makeRequestUrl(url);
+      const response = await fetch(apiEndpoint, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
+      return await response.json();
     },
     delete: async (url: string): Promise<any> => {
       console.log('Mock API DELETE:', url);
@@ -443,15 +450,23 @@ const componentServices: Services = {
 // Development wrapper component
 const DevWrapper: React.FC = () => {
   const [theme, setTheme] = React.useState<'light' | 'dark'>('light');
-  
+
+  React.useEffect(() => {
+    const stored = (localStorage.getItem('mock-theme') as 'light' | 'dark') || 'light';
+    setTheme(stored);
+  }, []);
+
   const toggleTheme = () => {
-    setTheme(prev => prev === 'light' ? 'dark' : 'light');
-    // Update mock theme service
-    // mockServices.theme.getCurrentTheme = () => theme === 'light' ? 'dark' : 'light';
+    const next = theme === 'light' ? 'dark' : 'light';
+    setTheme(next);
+    // Persist and notify the mock theme service listeners
+    localStorage.setItem('mock-theme', next);
+    const event = new CustomEvent('mock-theme-change', { detail: next });
+    window.dispatchEvent(event);
   };
 
   return (
-    <div style={{ 
+    <div className={theme === 'dark' ? 'dark' : ''} style={{ 
       minHeight: '100vh', 
       backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff',
       padding: '20px'
@@ -482,7 +497,7 @@ const DevWrapper: React.FC = () => {
             fontSize: '12px'
           }}
         >
-          Toggle Theme: {theme}
+          {theme === 'dark' ? '🌙 Dark' : '☀️ Light'}
         </button>
         <div style={{ marginTop: '10px', fontSize: '12px', opacity: 0.7 }}>
           <div>✅ Mock API Active</div>
