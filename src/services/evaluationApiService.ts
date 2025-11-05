@@ -32,12 +32,12 @@ export async function startPluginEvaluation(): Promise<StartEvaluationResponse> 
 
 /**
  * Submit plugin evaluation answers
- * Backend judges each answer and returns progress
+ * Backend queues judging as background task and returns 202 Accepted
  */
 export async function submitPluginEvaluation(
   request: SubmitEvaluationRequest
 ): Promise<SubmitEvaluationResponse> {
-  const response = await fetch(`${EVALUATION_API_BASE}/plugin/submit`, {
+  const response = await fetch(`${EVALUATION_API_BASE}/plugin/submit-with-questions`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -45,7 +45,8 @@ export async function submitPluginEvaluation(
     body: JSON.stringify(request),
   });
 
-  if (!response.ok) {
+  // Accept both 200 and 202 status codes
+  if (!response.ok && response.status !== 202) {
     const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
     throw new Error(error.detail || 'Failed to submit evaluation');
   }

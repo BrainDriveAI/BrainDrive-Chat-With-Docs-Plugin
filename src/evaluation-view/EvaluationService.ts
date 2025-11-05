@@ -1,8 +1,8 @@
 import { AIService } from '../services/aiService';
 import {
-  startPluginEvaluation,
   submitPluginEvaluation,
   startPluginEvaluationWithQuestions,
+  getEvaluationResults,
 } from '../services';
 import type { ModelInfo, PersonaInfo } from '../components/chat-header/types';
 import type {
@@ -11,6 +11,8 @@ import type {
   TestCase,
   SubmissionItem,
   EvaluationRun,
+  PersonaConfigRequest,
+  PersonaModelSettings,
 } from './evaluationViewTypes';
 import { EvaluationPersistence, type PersistedEvaluationState } from './EvaluationPersistence';
 
@@ -25,6 +27,7 @@ export class EvaluationService {
   private deps: ServiceDependencies;
   private abortController: AbortController | null = null;
   private currentModel: ModelInfo | null = null;
+  private currentLlmModel: string | null = null;
   private currentPersona: PersonaInfo | null = null;
   private currentCollectionId: string | null = null;
   private processedQuestionIds: Set<string> = new Set();
@@ -39,6 +42,31 @@ export class EvaluationService {
     this.updateShellState = updateShellState;
   }
 
+  /**
+   * Convert PersonaInfo to PersonaConfigRequest format for API
+   */
+  private convertPersonaToRequest(persona: PersonaInfo | null): PersonaConfigRequest | null {
+    if (!persona) return null;
+
+    return {
+      id: persona.id || null,
+      name: persona.name || null,
+      description: (persona as any).description || null,
+      system_prompt: persona.system_prompt || null,
+      model_settings: {
+        temperature: 0.7,
+        top_p: 0.9,
+        frequency_penalty: 0.0,
+        presence_penalty: 0.0,
+        context_window: 4000,
+        stop_sequences: [],
+        ...(persona.model_settings || {}),
+      } as PersonaModelSettings,
+      created_at: (persona as any).created_at || null,
+      updated_at: (persona as any).updated_at || null,
+    };
+  }
+
   private updateState(newState: Partial<EvaluationFeatureState>): void {
     this.state = { ...this.state, ...newState };
     this.updateShellState(newState);
@@ -50,25 +78,29 @@ export class EvaluationService {
   public runEvaluation = async (
     selectedModel: ModelInfo,
     selectedPersona: PersonaInfo | null = null,
-    collectionId?: string | null,
-    questions?: string[] | null
+    collectionId: string,
+    questions: string[]
   ): Promise<void> => {
     this.updateState({ isRunning: true, error: null, progress: 0 });
     this.abortController = new AbortController();
 
     // Save current run config
     this.currentModel = selectedModel;
+    this.currentLlmModel = selectedModel.name;
     this.currentPersona = selectedPersona;
-    this.currentCollectionId = collectionId || null;
+    this.currentCollectionId = collectionId;
     this.processedQuestionIds.clear();
 
     try {
       // Step 1: Start evaluation - get test questions with context
       console.log('Starting evaluation...');
 
-      const { evaluation_run_id, test_data } = collectionId && questions
-        ? await startPluginEvaluationWithQuestions({ collection_id: collectionId, questions })
-        : await startPluginEvaluation();
+      const { evaluation_run_id, test_data } = await startPluginEvaluationWithQuestions({
+        collection_id: collectionId,
+        questions,
+        llm_model: this.currentLlmModel,
+        persona: this.convertPersonaToRequest(selectedPersona),
+      });
       console.log(`Evaluation started: ${evaluation_run_id}`);
       console.log(`Total questions: ${test_data.length}`);
 
@@ -80,10 +112,14 @@ export class EvaluationService {
           total_questions: test_data.length,
           correct_count: 0,
           incorrect_count: 0,
+          evaluated_count: 0,
           accuracy: 0,
           started_at: new Date().toISOString(),
           is_completed: false,
           progress: 0,
+          status: 'running',
+          duration_seconds: null,
+          run_date: new Date().toISOString(),
         },
       });
 
@@ -132,41 +168,67 @@ export class EvaluationService {
 
         this.updateState({ isGenerating: false });
 
-        // Step 4: Submit batch for judging
+        // Step 4: Submit batch for judging (returns 202 immediately)
         console.log(`Submitting ${submissions.length} answers...`);
-        const result = await submitPluginEvaluation({
+        const submitResponse = await submitPluginEvaluation({
           evaluation_run_id,
           submissions,
         });
 
-        console.log(`Batch ${batchIndex + 1} results:`, result);
+        console.log(`Batch ${batchIndex + 1} submitted:`, submitResponse.message);
 
-        // Update progress and results
-        this.updateState({
-          progress: result.progress,
-          currentResults: result,
-          activeRun: {
-            ...this.state.activeRun!,
-            progress: result.progress,
-            correct_count: result.correct_count,
-            incorrect_count: result.incorrect_count,
-            accuracy: (result.correct_count / result.total_questions) * 100,
-          },
-        });
+        // Step 5: Poll for results until batch is judged
+        const previousEvaluatedCount = this.state.activeRun?.evaluated_count || 0;
+        const targetCount = previousEvaluatedCount + submissions.length;
+
+        console.log(`Waiting for judging... (target: ${targetCount})`);
+
+        while (true) {
+          // Check if aborted
+          if (this.abortController?.signal.aborted) {
+            console.log('Evaluation aborted during polling');
+            this.updateState({ isRunning: false });
+            return;
+          }
+
+          // Wait 2 seconds before polling
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Poll for results
+          const resultsData = await getEvaluationResults(evaluation_run_id);
+          const evaluationRun = resultsData.evaluation_run;
+
+          console.log(`Poll result: evaluated ${evaluationRun.evaluated_count}/${evaluationRun.total_questions}`);
+
+          // Update UI with latest progress
+          this.updateState({
+            progress: evaluationRun.progress,
+            activeRun: {
+              ...this.state.activeRun!,
+              evaluated_count: evaluationRun.evaluated_count,
+              progress: evaluationRun.progress,
+              correct_count: evaluationRun.correct_count,
+              incorrect_count: evaluationRun.incorrect_count,
+              accuracy: evaluationRun.accuracy,
+            },
+          });
+
+          // Check if batch is processed
+          if (evaluationRun.evaluated_count >= targetCount) {
+            console.log(`Batch ${batchIndex + 1} judged successfully`);
+            break;
+          }
+        }
 
         // Save progress to persistence
         this.savePersistenceState(evaluation_run_id, test_data);
 
         // Check if completed
-        if (result.is_completed) {
+        const currentRun = this.state.activeRun!;
+        if (currentRun.evaluated_count === currentRun.total_questions) {
           console.log('Evaluation completed!');
           const completedRun: EvaluationRun = {
-            id: evaluation_run_id,
-            total_questions: result.total_questions,
-            correct_count: result.correct_count,
-            incorrect_count: result.incorrect_count,
-            accuracy: (result.correct_count / result.total_questions) * 100,
-            started_at: this.state.activeRun!.started_at,
+            ...currentRun,
             completed_at: new Date().toISOString(),
             is_completed: true,
             progress: 1.0,
@@ -274,11 +336,12 @@ export class EvaluationService {
    * Save current evaluation state to persistence
    */
   private savePersistenceState(runId: string, testCases: TestCase[]): void {
-    if (!this.currentModel) return;
+    if (!this.currentModel || !this.currentLlmModel) return;
 
     const persistedState: PersistedEvaluationState = {
       runId,
       model: this.currentModel,
+      llmModel: this.currentLlmModel,
       persona: this.currentPersona,
       collectionId: this.currentCollectionId,
       testCases,
@@ -308,6 +371,7 @@ export class EvaluationService {
 
     // Restore tracking state
     this.currentModel = persistedState.model;
+    this.currentLlmModel = persistedState.llmModel;
     this.currentPersona = persistedState.persona;
     this.currentCollectionId = persistedState.collectionId || null;
     this.processedQuestionIds = new Set(persistedState.processedQuestionIds);
@@ -341,10 +405,14 @@ export class EvaluationService {
         total_questions: test_data.length,
         correct_count: 0,
         incorrect_count: 0,
+        evaluated_count: this.processedQuestionIds.size,
         accuracy: 0,
         started_at: new Date(persistedState.timestamp).toISOString(),
         is_completed: false,
         progress: this.processedQuestionIds.size / test_data.length,
+        status: 'running',
+        duration_seconds: null,
+        run_date: new Date(persistedState.timestamp).toISOString(),
       },
     });
 
@@ -391,41 +459,67 @@ export class EvaluationService {
 
         this.updateState({ isGenerating: false });
 
-        // Submit batch for judging
+        // Submit batch for judging (returns 202 immediately)
         console.log(`Submitting ${submissions.length} answers...`);
-        const result = await submitPluginEvaluation({
+        const submitResponse = await submitPluginEvaluation({
           evaluation_run_id,
           submissions,
         });
 
-        console.log(`Batch ${batchIndex + 1} results:`, result);
+        console.log(`Batch ${batchIndex + 1} submitted:`, submitResponse.message);
 
-        // Update progress and results
-        this.updateState({
-          progress: result.progress,
-          currentResults: result,
-          activeRun: {
-            ...this.state.activeRun!,
-            progress: result.progress,
-            correct_count: result.correct_count,
-            incorrect_count: result.incorrect_count,
-            accuracy: (result.correct_count / result.total_questions) * 100,
-          },
-        });
+        // Poll for results until batch is judged
+        const previousEvaluatedCount = this.state.activeRun?.evaluated_count || 0;
+        const targetCount = previousEvaluatedCount + submissions.length;
+
+        console.log(`Waiting for judging... (target: ${targetCount})`);
+
+        while (true) {
+          // Check if aborted
+          if (this.abortController?.signal.aborted) {
+            console.log('Evaluation aborted during polling');
+            this.updateState({ isRunning: false });
+            return;
+          }
+
+          // Wait 2 seconds before polling
+          await new Promise(resolve => setTimeout(resolve, 2000));
+
+          // Poll for results
+          const resultsData = await getEvaluationResults(evaluation_run_id);
+          const evaluationRun = resultsData.evaluation_run;
+
+          console.log(`Poll result: evaluated ${evaluationRun.evaluated_count}/${evaluationRun.total_questions}`);
+
+          // Update UI with latest progress
+          this.updateState({
+            progress: evaluationRun.progress,
+            activeRun: {
+              ...this.state.activeRun!,
+              evaluated_count: evaluationRun.evaluated_count,
+              progress: evaluationRun.progress,
+              correct_count: evaluationRun.correct_count,
+              incorrect_count: evaluationRun.incorrect_count,
+              accuracy: evaluationRun.accuracy,
+            },
+          });
+
+          // Check if batch is processed
+          if (evaluationRun.evaluated_count >= targetCount) {
+            console.log(`Batch ${batchIndex + 1} judged successfully`);
+            break;
+          }
+        }
 
         // Save progress to persistence
         this.savePersistenceState(evaluation_run_id, test_data);
 
         // Check if completed
-        if (result.is_completed) {
+        const currentRun = this.state.activeRun!;
+        if (currentRun.evaluated_count === currentRun.total_questions) {
           console.log('Evaluation completed!');
           const completedRun: EvaluationRun = {
-            id: evaluation_run_id,
-            total_questions: result.total_questions,
-            correct_count: result.correct_count,
-            incorrect_count: result.incorrect_count,
-            accuracy: (result.correct_count / result.total_questions) * 100,
-            started_at: this.state.activeRun!.started_at,
+            ...currentRun,
             completed_at: new Date().toISOString(),
             is_completed: true,
             progress: 1.0,
