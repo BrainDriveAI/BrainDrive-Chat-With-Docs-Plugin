@@ -5,6 +5,8 @@
 
 A [BrainDrive](https://braindrive.ai) plugin that lets you chat with your documents using AI while keeping all data local and private.
 
+![BrainDrive Chat w Docs Upload](images/chat-w-docs-upload.png)
+
 ## Overview
 
 This plugin provides a complete document chat interface within BrainDrive. Upload documents, organize them into collections, and chat with AI about their contents—all processed locally on your machine.
