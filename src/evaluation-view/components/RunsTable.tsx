@@ -5,9 +5,10 @@ import type { EvaluationRun } from '../evaluationViewTypes';
 interface RunsTableProps {
   runs: EvaluationRun[];
   onSelectRun: (runId: string) => void;
+  headerActions?: React.ReactNode;
 }
 
-export const RunsTable: React.FC<RunsTableProps> = ({ runs, onSelectRun }) => {
+export const RunsTable: React.FC<RunsTableProps> = ({ runs, onSelectRun, headerActions }) => {
   const formatDate = (dateString: string): string => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -59,10 +60,11 @@ export const RunsTable: React.FC<RunsTableProps> = ({ runs, onSelectRun }) => {
   if (runs.length === 0) {
     return (
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
           <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
             Recent Evaluation Runs
           </h3>
+          {headerActions}
         </div>
         <div className="px-6 py-12 text-center">
           <Inbox className="mx-auto h-12 w-12 text-gray-400" />
@@ -79,10 +81,11 @@ export const RunsTable: React.FC<RunsTableProps> = ({ runs, onSelectRun }) => {
 
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-      <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
+      <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
         <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
           Recent Evaluation Runs
         </h3>
+        {headerActions}
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">

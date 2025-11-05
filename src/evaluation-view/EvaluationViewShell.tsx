@@ -484,12 +484,17 @@ export class EvaluationViewShell extends React.Component<
                     : null
                 }
               />
-              <StatusFilter
-                currentStatus={statusFilter}
-                onStatusChange={this.handleStatusFilterChange}
-                counts={statusCounts}
+              <RunsTable
+                runs={filteredRuns}
+                onSelectRun={this.handleSelectRun}
+                headerActions={
+                  <StatusFilter
+                    currentStatus={statusFilter}
+                    onStatusChange={this.handleStatusFilterChange}
+                    counts={statusCounts}
+                  />
+                }
               />
-              <RunsTable runs={filteredRuns} onSelectRun={this.handleSelectRun} />
             </>
           )}
 
