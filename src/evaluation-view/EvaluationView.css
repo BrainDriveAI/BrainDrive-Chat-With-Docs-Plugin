@@ -1,0 +1,308 @@
+/*
+ * Evaluation View - Import base styles
+ */
+
+@import '../styles/BrainDriveChat.base.css';
+@import '../styles/BrainDriveChat.layout.css';
+@import '../styles/BrainDriveChat.components.css';
+@import '../styles/BrainDriveChat.forms.css';
+@import '../styles/BrainDriveChat.themes.css';
+@import '../styles/BrainDriveChat.responsive.css';
+
+/* Evaluation View Specific Styles */
+
+.evaluation-view {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+
+.evaluation-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem;
+}
+
+.evaluation-title {
+  font-size: 1.75rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.evaluation-subtitle {
+  font-size: 0.95rem;
+  color: var(--text-secondary);
+  margin-bottom: 2rem;
+}
+
+/* Model Selection */
+
+.model-selection {
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.model-selection label {
+  display: block;
+  font-weight: 500;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+}
+
+.model-selection select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+}
+
+.model-selection select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* Start Button */
+
+.evaluation-start-btn {
+  width: 100%;
+  padding: 1rem;
+  font-size: 1rem;
+  font-weight: 500;
+  background: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.evaluation-start-btn:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.evaluation-start-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Progress */
+
+.evaluation-progress {
+  margin: 2rem 0;
+  padding: 2rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  text-align: center;
+}
+
+.progress-bar {
+  width: 100%;
+  height: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  overflow: hidden;
+  margin: 1rem 0;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary-color);
+  transition: width 0.3s ease;
+}
+
+.evaluation-progress p {
+  margin: 0.5rem 0;
+  color: var(--text-secondary);
+}
+
+.evaluation-progress button {
+  margin-top: 1rem;
+  padding: 0.5rem 1.5rem;
+  background: var(--danger-color);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+/* Results */
+
+.evaluation-results {
+  margin: 2rem 0;
+  padding: 2rem;
+  background: var(--bg-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.evaluation-results h3 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+.results-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.result-card {
+  padding: 1.5rem;
+  background: var(--bg-primary);
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  text-align: center;
+}
+
+.result-card label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 0.5rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.result-value {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.evaluation-id {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+  text-align: center;
+  margin: 1rem 0;
+  font-family: monospace;
+}
+
+.evaluation-results button {
+  width: 100%;
+  margin-top: 1rem;
+}
+
+/* Error */
+
+.evaluation-error {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-color);
+  border-radius: 6px;
+  color: var(--danger-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.evaluation-error p {
+  margin: 0;
+  flex: 1;
+}
+
+.evaluation-error button {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  border: 1px solid var(--danger-color);
+  color: var(--danger-color);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+/* Past Runs */
+
+.past-runs {
+  margin-top: 3rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.past-runs h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  color: var(--text-primary);
+}
+
+.runs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.run-item {
+  padding: 1rem;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.run-item:hover {
+  border-color: var(--primary-color);
+}
+
+.run-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.run-date {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+.run-accuracy {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--primary-color);
+}
+
+.run-stats {
+  font-size: 0.85rem;
+  color: var(--text-tertiary);
+}
+
+/* Empty State */
+
+.empty-state {
+  padding: 3rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-state p {
+  font-size: 0.95rem;
+}
+
+/* Responsive */
+
+@media (max-width: 768px) {
+  .results-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .evaluation-container {
+    padding: 1rem;
+  }
+
+  .result-value {
+    font-size: 1.5rem;
+  }
+}
