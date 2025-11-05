@@ -22,7 +22,23 @@ export const RunsTable: React.FC<RunsTableProps> = ({ runs, onSelectRun, headerA
 
   const formatDuration = (seconds: number | null): string => {
     if (seconds === null || seconds === undefined || isNaN(seconds)) return 'N/A';
-    return `${seconds.toFixed(1)}s`;
+
+    // Less than 60 seconds - show seconds only
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)}s`;
+    }
+
+    // Less than 60 minutes - show minutes and seconds
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+
+    // 60 minutes or more - show hours and minutes
+    const hours = Math.floor(seconds / 3600);
+    const remainingMinutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${remainingMinutes}m`;
   };
 
   const getStatusBadge = (status: string) => {
