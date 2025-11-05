@@ -15,7 +15,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
 }) => {
   return (
     <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-row items-center gap-4">
         <div className="flex-1">
           <input
             type="text"
