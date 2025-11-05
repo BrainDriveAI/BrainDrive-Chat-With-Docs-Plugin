@@ -104,10 +104,42 @@ export class EvaluationViewShell extends React.Component<
   /**
    * Check for in-progress evaluation in localStorage
    */
-  checkForInProgressEvaluation = () => {
+  checkForInProgressEvaluation = async () => {
     const hasInProgress = EvaluationPersistence.hasInProgressEvaluation();
-    if (hasInProgress) {
-      const remaining = EvaluationPersistence.getRemainingQuestionsCount();
+    if (!hasInProgress) return;
+
+    const remaining = EvaluationPersistence.getRemainingQuestionsCount();
+
+    // Clear stale state if no questions remaining
+    if (remaining <= 0) {
+      console.log('Found persisted evaluation with 0 remaining questions, clearing...');
+      EvaluationPersistence.clearState();
+      return;
+    }
+
+    // Verify backend status before showing resume banner
+    const persistedState = EvaluationPersistence.loadState();
+    if (!persistedState) return;
+
+    try {
+      const resultsData = await getEvaluationResults(persistedState.runId);
+
+      // If backend shows evaluation is completed, clear localStorage
+      if (resultsData.evaluation_run.is_completed) {
+        console.log('Backend shows evaluation completed, clearing persisted state');
+        EvaluationPersistence.clearState();
+        return;
+      }
+
+      // Evaluation is truly in progress, show resume banner
+      this.setState({
+        hasInProgressEvaluation: true,
+        remainingQuestionsCount: remaining,
+      });
+    } catch (error) {
+      // If backend request fails (run not found, etc.), show banner anyway
+      // User can choose to resume or start fresh
+      console.warn('Failed to verify backend status, showing resume banner anyway:', error);
       this.setState({
         hasInProgressEvaluation: true,
         remainingQuestionsCount: remaining,
