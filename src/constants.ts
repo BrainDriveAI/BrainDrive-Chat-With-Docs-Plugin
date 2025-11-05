@@ -22,7 +22,9 @@ export const DEFAULT_PLUGIN_SETTINGS = {
         DOCUMENT_PROCESSOR_API_URL: "http://host.docker.internal:8080/documents/",
         DOCUMENT_PROCESSOR_API_KEY: "default_api_key",
         DOCUMENT_PROCESSOR_TIMEOUT: 300,
-        DOCUMENT_PROCESSOR_MAX_RETRIES: 3
+        DOCUMENT_PROCESSOR_MAX_RETRIES: 3,
+        OPENAI_EVALUATION_API_KEY: "",
+        OPENAI_EVALUATION_MODEL: "gpt-5-mini"
     }
 };
 

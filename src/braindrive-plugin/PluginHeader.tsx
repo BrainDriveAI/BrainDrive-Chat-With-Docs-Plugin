@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowLeft, Settings } from 'lucide-react';
+import { ArrowLeft, Settings, FlaskConical } from 'lucide-react';
 
 import { type PluginHeaderProps, ViewType } from './pluginTypes';
 import { ServiceStatusIndicator } from '../components';
@@ -43,6 +43,7 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
                             {currentView === ViewType.DOCUMENTS && `Documents - ${collectionName}`}
                             {currentView === ViewType.CHAT && `Chat with ${collectionName} collection`}
                             {currentView === ViewType.SETTINGS && 'Plugin Settings'}
+                            {currentView === ViewType.EVALUATION && 'Chat with Docs System Evaluation'}
                         </h1>
                     </div>
                     
@@ -55,6 +56,16 @@ export const PluginHeader: React.FC<PluginHeaderProps> = ({
                             onRefresh={checkAllServices}
                         />
                         
+                        {currentView !== ViewType.EVALUATION && (
+                            <button
+                                onClick={() => handleViewChange(ViewType.EVALUATION)}
+                                className="p-2 rounded-full hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+                                title="Evaluation"
+                                disabled={!areServicesReady}
+                            >
+                                <FlaskConical className="w-5 h-5" />
+                            </button>
+                        )}
                         {currentView !== ViewType.SETTINGS && (
                             <button
                                 onClick={() => handleViewChange(ViewType.SETTINGS)}

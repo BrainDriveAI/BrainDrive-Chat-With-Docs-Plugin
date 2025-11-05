@@ -237,6 +237,7 @@ export class PluginService implements IPluginService {
     // --- Public View Controllers (Event Handlers) ---
 
     public handleViewChange = (view: ViewType): void => {
+        console.log("handleViewChange: ", view);
         this.updateState({ currentView: view, error: null });
     }
 
@@ -261,15 +262,17 @@ export class PluginService implements IPluginService {
     public handleBack = (): void => {
         const { currentView } = this.state;
         let newState: Partial<PluginState> = {};
-        
+
         if (currentView === ViewType.CHAT) {
             newState = { currentView: ViewType.COLLECTIONS, selectedChatSession: null, chatMessages: [] };
         } else if (currentView === ViewType.DOCUMENTS) {
             newState = { currentView: ViewType.COLLECTIONS, selectedCollection: null, documents: [], chatSessions: [] };
         } else if (currentView === ViewType.SETTINGS) {
             newState = { currentView: ViewType.COLLECTIONS };
+        } else if (currentView === ViewType.EVALUATION) {
+            newState = { currentView: ViewType.COLLECTIONS };
         }
-        
+
         this.updateState(newState);
     }
     
