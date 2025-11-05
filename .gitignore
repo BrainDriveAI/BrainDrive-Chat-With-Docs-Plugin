@@ -90,3 +90,11 @@ jspm_packages/
 
 # DynamoDB Local files
 .dynamodb/
+
+# Documentation and notes
+CLAUDE.md
+FRONTEND_EVALUATION_API_UPDATES.md
+evaluation-ui-example.html
+evaludation_flow_summary_client_side.md
+plugin-evaluation-integration.md
+screen/
