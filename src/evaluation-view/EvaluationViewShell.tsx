@@ -16,6 +16,7 @@ import { RunsTable } from './components/RunsTable';
 import { ResultsSummary } from './components/ResultsSummary';
 import { ResultItem } from './components/ResultItem';
 import { FilterControls } from './components/FilterControls';
+import { StatusFilter } from './components/StatusFilter';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import './EvaluationView.css';
@@ -52,6 +53,7 @@ export class EvaluationViewShell extends React.Component<
     detailedResults: DetailedEvaluationResult[];
     searchTerm: string;
     correctnessFilter: 'all' | 'correct' | 'incorrect';
+    statusFilter: 'all' | 'pending' | 'running' | 'completed' | 'failed';
     expandedResultIds: Set<string>;
     showDialog: boolean;
     hasInProgressEvaluation: boolean;
@@ -78,6 +80,7 @@ export class EvaluationViewShell extends React.Component<
       detailedResults: [],
       searchTerm: '',
       correctnessFilter: 'all',
+      statusFilter: 'all',
       expandedResultIds: new Set(),
       showDialog: false,
       hasInProgressEvaluation: false,
@@ -314,6 +317,10 @@ export class EvaluationViewShell extends React.Component<
     this.setState({ correctnessFilter: filter });
   };
 
+  handleStatusFilterChange = (status: 'all' | 'pending' | 'running' | 'completed' | 'failed') => {
+    this.setState({ statusFilter: status });
+  };
+
   toggleResultExpanded = (testCaseId: string) => {
     this.setState((prev) => {
       const newExpanded = new Set(prev.expandedResultIds);
@@ -343,6 +350,28 @@ export class EvaluationViewShell extends React.Component<
     });
   };
 
+  getFilteredRuns = () => {
+    const { pastRuns, statusFilter } = this.state;
+
+    if (statusFilter === 'all') {
+      return pastRuns;
+    }
+
+    return pastRuns.filter((run) => run.status === statusFilter);
+  };
+
+  getStatusCounts = () => {
+    const { pastRuns } = this.state;
+
+    return {
+      all: pastRuns.length,
+      pending: pastRuns.filter((r) => r.status === 'pending').length,
+      running: pastRuns.filter((r) => r.status === 'running').length,
+      completed: pastRuns.filter((r) => r.status === 'completed').length,
+      failed: pastRuns.filter((r) => r.status === 'failed').length,
+    };
+  };
+
   render() {
     const {
       availableModels,
@@ -355,12 +384,15 @@ export class EvaluationViewShell extends React.Component<
       expandedResultIds,
       searchTerm,
       correctnessFilter,
+      statusFilter,
       showDialog,
       hasInProgressEvaluation,
       remainingQuestionsCount,
     } = this.state;
 
     const filteredResults = this.getFilteredResults();
+    const filteredRuns = this.getFilteredRuns();
+    const statusCounts = this.getStatusCounts();
     const latestRun = pastRuns.length > 0 ? pastRuns[0] : null;
 
     return (
@@ -452,7 +484,12 @@ export class EvaluationViewShell extends React.Component<
                     : null
                 }
               />
-              <RunsTable runs={pastRuns} onSelectRun={this.handleSelectRun} />
+              <StatusFilter
+                currentStatus={statusFilter}
+                onStatusChange={this.handleStatusFilterChange}
+                counts={statusCounts}
+              />
+              <RunsTable runs={filteredRuns} onSelectRun={this.handleSelectRun} />
             </>
           )}
 
