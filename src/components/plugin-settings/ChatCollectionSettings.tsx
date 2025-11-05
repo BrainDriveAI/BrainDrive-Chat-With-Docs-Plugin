@@ -65,6 +65,8 @@ interface ChatSettingsValue {
     DOCUMENT_PROCESSOR_API_KEY: string;
     DOCUMENT_PROCESSOR_TIMEOUT: number;
     DOCUMENT_PROCESSOR_MAX_RETRIES: number;
+    OPENAI_EVALUATION_API_KEY: string;
+    OPENAI_EVALUATION_MODEL: string;
 }
 
 interface ChatCollectionsSettingsState {
@@ -201,6 +203,20 @@ const FIELD_CONFIG: Record<keyof ChatSettingsValue, FieldConfig> = {
     min: 1,
     max: 10,
     placeholder: '3'
+  },
+  OPENAI_EVALUATION_API_KEY: {
+    label: 'OpenAI API Key',
+    description: 'Your OpenAI API key for evaluation judge service',
+    type: 'password',
+    section: 'evaluation',
+    placeholder: 'sk-...'
+  },
+  OPENAI_EVALUATION_MODEL: {
+    label: 'OpenAI Evaluation Model',
+    description: 'The OpenAI model to use as judge for evaluation',
+    type: 'text',
+    section: 'evaluation',
+    placeholder: 'gpt-5-mini'
   }
 };
 
@@ -209,7 +225,8 @@ const SECTIONS = {
     retrieval: { title: 'Contextual Retrieval', icon: '🧠' },
     ollama: { title: 'Ollama Configuration', icon: '🦙' },
     contextual: { title: 'Contextual LLM Settings', icon: '🔍' },
-    processor: { title: 'Document Processor', icon: '📄' }
+    processor: { title: 'Document Processor', icon: '📄' },
+    evaluation: { title: 'OpenAI Configuration (Evaluation)', icon: '✅' }
 };
 
 
