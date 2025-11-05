@@ -11,7 +11,7 @@ This plugin provides a complete document chat interface within BrainDrive. Uploa
 
 **Key Components:**
 - **Frontend:** Document upload UI, collections management, and chat interface (this plugin)
-- **Backend Services:** Document Chat Service (port 8000) and Document Processing Service (port 8080)—both auto-installed via Docker
+- **Backend Services:** [Document Chat Service](https://github.com/BrainDriveAI/Document-Chat-Service) (port 8000) and [Document Processing Service](https://github.com/BrainDriveAI/Document-Processing-Service) (port 8080)—both auto-installed via Docker
 
 ## Features
 
