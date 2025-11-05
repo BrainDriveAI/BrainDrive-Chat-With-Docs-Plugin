@@ -13,7 +13,8 @@ export enum ViewType {
   COLLECTIONS = 'collections',
   DOCUMENTS = 'documents',
   CHAT = 'chat',
-  SETTINGS = 'settings'
+  SETTINGS = 'settings',
+  EVALUATION = 'evaluation'
 }
 
 export interface Collection {

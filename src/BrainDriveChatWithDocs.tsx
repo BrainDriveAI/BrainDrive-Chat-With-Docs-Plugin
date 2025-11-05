@@ -4,6 +4,7 @@ import { Loader2, AlertCircle } from 'lucide-react';
 // import { ChatMessagesProvider } from './collection-chat-view/context/chat-messages-provider';
 import { CollectionViewShell } from './collection-view/CollectionViewShell';
 import { CollectionChatViewShell } from './collection-chat-view/CollectionChatViewShell';
+import { EvaluationViewShell } from './evaluation-view/EvaluationViewShell';
 import {
 	ErrorAlert,
 	ServiceWarningBanner,
@@ -185,6 +186,13 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
                         )}
                         {currentView === ViewType.SETTINGS && (
                             <ChatCollectionsSettings services={services} />
+                        )}
+                        {currentView === ViewType.EVALUATION && (
+                            <EvaluationViewShell
+                                services={services}
+                                setError={this.pluginService.setError}
+                                collections={this.state.collections}
+                            />
                         )}
                     </div>
                 </ContentOverlay>
