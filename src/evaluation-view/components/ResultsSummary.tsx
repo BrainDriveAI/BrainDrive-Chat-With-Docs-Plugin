@@ -19,7 +19,23 @@ export const ResultsSummary: React.FC<ResultsSummaryProps> = ({ run }) => {
 
   const formatDuration = (seconds: number | null): string => {
     if (seconds === null) return 'N/A';
-    return `${seconds.toFixed(1)}s`;
+
+    // Less than 60 seconds - show seconds only
+    if (seconds < 60) {
+      return `${seconds.toFixed(1)}s`;
+    }
+
+    // Less than 60 minutes - show minutes and seconds
+    if (seconds < 3600) {
+      const minutes = Math.floor(seconds / 60);
+      const remainingSeconds = Math.floor(seconds % 60);
+      return `${minutes}m ${remainingSeconds}s`;
+    }
+
+    // 60 minutes or more - show hours and minutes
+    const hours = Math.floor(seconds / 3600);
+    const remainingMinutes = Math.floor((seconds % 3600) / 60);
+    return `${hours}h ${remainingMinutes}m`;
   };
 
   const getAccuracyColor = (accuracy: number): string => {
@@ -78,14 +94,28 @@ export const ResultsSummary: React.FC<ResultsSummaryProps> = ({ run }) => {
               Configuration
             </h4>
             <div className="flex flex-wrap gap-2">
-              {Object.entries(run.config_snapshot).map(([key, value]) => (
-                <span
-                  key={key}
-                  className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
-                >
-                  {key}: {String(value)}
-                </span>
-              ))}
+              {Object.entries(run.config_snapshot).map(([key, value]) => {
+                // Handle persona object - show only the name
+                if (key === 'persona' && value && typeof value === 'object' && 'name' in value) {
+                  return (
+                    <span
+                      key={key}
+                      className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                    >
+                      {key}: {value.name}
+                    </span>
+                  );
+                }
+
+                return (
+                  <span
+                    key={key}
+                    className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                  >
+                    {key}: {String(value)}
+                  </span>
+                );
+              })}
             </div>
           </div>
         )}
