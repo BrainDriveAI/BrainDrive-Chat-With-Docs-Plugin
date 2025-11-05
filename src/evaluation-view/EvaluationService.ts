@@ -343,7 +343,7 @@ export class EvaluationService {
       model: this.currentModel,
       llmModel: this.currentLlmModel,
       persona: this.currentPersona,
-      collectionId: this.currentCollectionId,
+      collectionId: this.currentCollectionId || undefined,
       testCases,
       processedQuestionIds: Array.from(this.processedQuestionIds),
       currentBatch: [],
