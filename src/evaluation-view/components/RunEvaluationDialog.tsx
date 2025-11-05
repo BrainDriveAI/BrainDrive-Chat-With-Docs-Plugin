@@ -25,8 +25,8 @@ interface RunEvaluationDialogProps {
   onSubmit: (
     model: ModelInfo,
     persona: PersonaInfo | null,
-    collectionId: string | null,
-    questions: string[] | null
+    collectionId: string,
+    questions: string[]
   ) => void;
   availableModels: ModelInfo[];
   availablePersonas: PersonaInfo[];
@@ -53,7 +53,7 @@ export class RunEvaluationDialog extends React.Component<
     super(props);
     this.state = {
       selectedModelKey: '',
-      selectedPersonaId: '',
+      selectedPersonaId: 'none',
       selectedCollectionId: '',
       questions: '',
       validationErrors: {},
@@ -79,10 +79,6 @@ export class RunEvaluationDialog extends React.Component<
   };
 
   validateQuestions = (text: string): { valid: boolean; questions: string[]; error?: string } => {
-    if (!text.trim()) {
-      return { valid: true, questions: [], error: undefined };
-    }
-
     const lines = text.split('\n').map(q => q.trim()).filter(q => q.length > 0);
 
     if (lines.length < 1) {
@@ -108,34 +104,29 @@ export class RunEvaluationDialog extends React.Component<
       return;
     }
 
+    // Collection is required
+    if (!selectedCollectionId) {
+      this.setState({
+        validationErrors: { questions: 'Collection is required' },
+      });
+      return;
+    }
+
+    // Questions are required
+    const validation = this.validateQuestions(questions);
+    if (!validation.valid) {
+      this.setState({
+        validationErrors: { questions: validation.error },
+      });
+      return;
+    }
+
     const selectedPersona = selectedPersonaId && selectedPersonaId !== 'none'
       ? availablePersonas.find((p) => p.id === selectedPersonaId) || null
       : null;
 
-    // Validate questions if provided
-    if (questions.trim()) {
-      const validation = this.validateQuestions(questions);
-      if (!validation.valid) {
-        this.setState({
-          validationErrors: { questions: validation.error },
-        });
-        return;
-      }
-
-      // If questions provided, collection must be selected
-      if (!selectedCollectionId) {
-        this.setState({
-          validationErrors: { questions: 'Select a collection first' },
-        });
-        return;
-      }
-
-      // Submit with collection and questions
-      onSubmit(selectedModel, selectedPersona, selectedCollectionId, validation.questions);
-    } else {
-      // Submit without collection and questions (use default test set)
-      onSubmit(selectedModel, selectedPersona, null, null);
-    }
+    // Submit with collection and questions
+    onSubmit(selectedModel, selectedPersona, selectedCollectionId, validation.questions);
   };
 
   handleModelChange = (value: string) => {
@@ -148,7 +139,7 @@ export class RunEvaluationDialog extends React.Component<
 
   handleCollectionChange = (value: string) => {
     this.setState({
-      selectedCollectionId: value === 'none' ? '' : value,
+      selectedCollectionId: value,
       validationErrors: {},
     });
   };
@@ -178,17 +169,15 @@ export class RunEvaluationDialog extends React.Component<
       validationErrors,
     } = this.state;
 
-    const canSubmit = selectedModelKey && !isLoadingModels;
-    const questionsEnabled = !!selectedCollectionId;
+    const canSubmit = selectedModelKey && selectedCollectionId && questions.trim() && !isLoadingModels;
 
     return (
       <Dialog open={isOpen} onOpenChange={onClose}>
-        <DialogContent className="sm:max-w-[500px] max-h-[90vh] overflow-y-auto">
+        <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Run New Evaluation</DialogTitle>
             <DialogDescription>
-              Select a model, optional persona, and optionally provide custom questions from a
-              collection.
+              Select a model, optional persona, collection, and provide custom questions to evaluate.
             </DialogDescription>
           </DialogHeader>
 
@@ -257,17 +246,16 @@ export class RunEvaluationDialog extends React.Component<
             {/* Collection Selection */}
             <div className="grid gap-2">
               <label htmlFor="collection-select" className="text-sm font-medium">
-                Collection <span className="text-muted-foreground">(Optional)</span>
+                Collection <span className="text-red-500">*</span>
               </label>
               <Select
-                value={selectedCollectionId || 'none'}
+                value={selectedCollectionId}
                 onValueChange={this.handleCollectionChange}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Use default test set" />
+                  <SelectValue placeholder="Select a collection" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Use default test set</SelectItem>
                   {collections.map((collection) => (
                     <SelectItem key={collection.id} value={collection.id}>
                       {collection.name}
@@ -280,26 +268,21 @@ export class RunEvaluationDialog extends React.Component<
             {/* Questions Textarea */}
             <div className="grid gap-2">
               <label htmlFor="questions-input" className="text-sm font-medium">
-                Custom Questions{' '}
+                Custom Questions <span className="text-red-500">*</span>{' '}
                 <span className="text-muted-foreground">(1-100, one per line)</span>
               </label>
               <Textarea
                 id="questions-input"
                 value={questions}
                 onChange={this.handleQuestionsChange}
-                disabled={!questionsEnabled}
-                placeholder={
-                  questionsEnabled
-                    ? 'Enter questions, one per line...\n\nExample:\nWhat is BrainDrive?\nHow do I upload documents?\nWhat file types are supported?'
-                    : 'Select a collection first'
-                }
+                placeholder="Enter questions, one per line...\n\nExample:\nWhat is BrainDrive?\nHow do I upload documents?\nWhat file types are supported?"
                 rows={6}
                 className="resize-none"
               />
               {validationErrors.questions && (
                 <p className="text-sm text-red-500">{validationErrors.questions}</p>
               )}
-              {questionsEnabled && questions.trim() && (
+              {questions.trim() && (
                 <p className="text-xs text-muted-foreground">
                   {questions.split('\n').filter((q) => q.trim()).length} questions
                 </p>

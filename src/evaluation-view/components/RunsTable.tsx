@@ -20,7 +20,7 @@ export const RunsTable: React.FC<RunsTableProps> = ({ runs, onSelectRun }) => {
   };
 
   const formatDuration = (seconds: number | null): string => {
-    if (seconds === null) return 'N/A';
+    if (seconds === null || seconds === undefined || isNaN(seconds)) return 'N/A';
     return `${seconds.toFixed(1)}s`;
   };
 

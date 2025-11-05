@@ -233,8 +233,8 @@ export class EvaluationViewShell extends React.Component<
   handleSubmitEvaluation = async (
     model: ModelInfo,
     persona: PersonaInfo | null,
-    collectionId: string | null,
-    questions: string[] | null
+    collectionId: string,
+    questions: string[]
   ) => {
     this.setState({ showDialog: false });
     await this.evaluationService.runEvaluation(model, persona, collectionId, questions);
