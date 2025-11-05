@@ -25,15 +25,9 @@ export interface SubmitEvaluationRequest {
 }
 
 export interface SubmitEvaluationResponse {
+  message: string;
   evaluation_run_id: string;
-  processed_count: number;
-  skipped_count: number;
-  total_evaluated: number;
-  total_questions: number;
-  progress: number;
-  is_completed: boolean;
-  correct_count: number;
-  incorrect_count: number;
+  submitted_count: number;
 }
 
 export interface EvaluationRun {
@@ -41,6 +35,7 @@ export interface EvaluationRun {
   total_questions: number;
   correct_count: number;
   incorrect_count: number;
+  evaluated_count: number;
   accuracy: number;
   started_at: string;
   completed_at?: string;
@@ -107,8 +102,31 @@ export interface GetEvaluationResultsResponse {
   results: DetailedEvaluationResult[];
 }
 
+// Model settings for persona
+export interface PersonaModelSettings {
+  temperature: number;
+  top_p: number;
+  frequency_penalty: number;
+  presence_penalty: number;
+  context_window: number;
+  stop_sequences: string[];
+}
+
+// Persona configuration for API requests (all fields optional)
+export interface PersonaConfigRequest {
+  id?: string | null;
+  name?: string | null;
+  description?: string | null;
+  system_prompt?: string | null;
+  model_settings: PersonaModelSettings;
+  created_at?: string | null;
+  updated_at?: string | null;
+}
+
 // Request for starting evaluation with custom questions
 export interface StartWithQuestionsRequest {
   collection_id: string;
   questions: string[];
+  llm_model: string;
+  persona?: PersonaConfigRequest | null;
 }

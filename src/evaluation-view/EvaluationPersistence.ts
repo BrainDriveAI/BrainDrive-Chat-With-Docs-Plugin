@@ -7,6 +7,7 @@ const MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
 export interface PersistedEvaluationState {
   runId: string;
   model: ModelInfo;
+  llmModel: string;
   persona: PersonaInfo | null;
   collectionId?: string;
   testCases: TestCase[];
