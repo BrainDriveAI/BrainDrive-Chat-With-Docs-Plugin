@@ -9,7 +9,7 @@ import type { Services } from '../types';
 import type { Collection } from '../braindrive-plugin/pluginTypes';
 import { PROVIDER_SETTINGS_ID_MAP } from '../constants';
 import { getEvaluationRuns, getEvaluationResults } from '../services';
-import { RunEvaluationDialog } from './components/RunEvaluationDialog';
+// import { RunEvaluationDialog } from './components/RunEvaluationDialog';
 import { EvaluationTabs, type TabType } from './components/EvaluationTabs';
 import { StatsCards } from './components/StatsCards';
 import { RunsTable } from './components/RunsTable';
@@ -537,7 +537,7 @@ export class EvaluationViewShell extends React.Component<
           )}
 
           {/* Run Evaluation Dialog */}
-          <RunEvaluationDialog
+          {/* <RunEvaluationDialog
             isOpen={showDialog}
             onClose={this.handleCloseDialog}
             onSubmit={this.handleSubmitEvaluation}
@@ -546,7 +546,7 @@ export class EvaluationViewShell extends React.Component<
             collections={this.props.collections}
             isLoadingModels={isLoadingModels}
             isLoadingPersonas={isLoadingPersonas}
-          />
+          /> */}
         </div>
       </div>
     );
