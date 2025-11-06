@@ -11,7 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import type { ModelInfo, PersonaInfo } from '../../components/chat-header/types';
 import type { Collection } from '../../braindrive-plugin/pluginTypes';
 
-// Inline Dialog Components - No hooks, class-based pattern
+
 class Dialog extends React.Component<{
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
