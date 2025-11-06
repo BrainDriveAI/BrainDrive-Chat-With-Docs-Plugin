@@ -8,22 +8,40 @@ interface ResultItemProps {
   onToggle: () => void;
 }
 
-export const ResultItem: React.FC<ResultItemProps> = ({ result, isExpanded, onToggle }) => {
-  const [showContext, setShowContext] = React.useState(false);
+interface ResultItemState {
+  showContext: boolean;
+}
 
-  const borderColor = result.judge_correct
-    ? 'border-green-500'
-    : 'border-red-500';
+export class ResultItem extends React.Component<ResultItemProps, ResultItemState> {
+  constructor(props: ResultItemProps) {
+    super(props);
+    this.state = {
+      showContext: false
+    };
+  }
 
-  const iconColor = result.judge_correct
-    ? 'text-green-500'
-    : 'text-red-500';
+  handleToggleContext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    this.setState(prevState => ({ showContext: !prevState.showContext }));
+  };
 
-  const badgeClass = result.judge_correct
-    ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-    : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
+  render() {
+    const { result, isExpanded, onToggle } = this.props;
+    const { showContext } = this.state;
 
-  return (
+    const borderColor = result.judge_correct
+      ? 'border-green-500'
+      : 'border-red-500';
+
+    const iconColor = result.judge_correct
+      ? 'text-green-500'
+      : 'text-red-500';
+
+    const badgeClass = result.judge_correct
+      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
+      : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
+
+    return (
     <div className={`border-l-4 ${borderColor}`}>
       <div
         className="px-4 py-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
@@ -121,10 +139,7 @@ export const ResultItem: React.FC<ResultItemProps> = ({ result, isExpanded, onTo
             {/* Retrieved Context (Collapsible) */}
             <div>
               <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowContext(!showContext);
-                }}
+                onClick={this.handleToggleContext}
                 className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center"
               >
                 <FileText className="h-4 w-4 mr-1" />
@@ -150,5 +165,6 @@ export const ResultItem: React.FC<ResultItemProps> = ({ result, isExpanded, onTo
         </div>
       )}
     </div>
-  );
-};
+    );
+  }
+}
