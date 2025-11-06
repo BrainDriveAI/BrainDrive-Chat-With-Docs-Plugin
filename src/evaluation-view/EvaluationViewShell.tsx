@@ -445,7 +445,7 @@ export class EvaluationViewShell extends React.Component<
             <div className="flex justify-between items-center">
               <div>
                 <h1 className="text-3xl font-bold dark:text-white">
-                  RAG System Evaluation
+                  Chat with Docs System Evaluation
                 </h1>
                 <p className="mt-2 text-sm dark:text-gray-400">
                   Test and measure the accuracy of your RAG system
