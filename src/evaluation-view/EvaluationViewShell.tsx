@@ -9,7 +9,7 @@ import type { Services } from '../types';
 import type { Collection } from '../braindrive-plugin/pluginTypes';
 import { PROVIDER_SETTINGS_ID_MAP } from '../constants';
 import { getEvaluationRuns, getEvaluationResults } from '../services';
-// import { RunEvaluationDialog } from './components/RunEvaluationDialog';
+import { RunEvaluationDialog } from './components/RunEvaluationDialog';
 import { EvaluationTabs, type TabType } from './components/EvaluationTabs';
 import { StatsCards } from './components/StatsCards';
 import { RunsTable } from './components/RunsTable';
@@ -444,10 +444,10 @@ export class EvaluationViewShell extends React.Component<
           <div className="mb-8">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                <h1 className="text-3xl font-bold dark:text-white">
                   RAG System Evaluation
                 </h1>
-                <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                <p className="mt-2 text-sm dark:text-gray-400">
                   Test and measure the accuracy of your RAG system
                 </p>
               </div>
@@ -537,7 +537,7 @@ export class EvaluationViewShell extends React.Component<
           )}
 
           {/* Run Evaluation Dialog */}
-          {/* <RunEvaluationDialog
+          <RunEvaluationDialog
             isOpen={showDialog}
             onClose={this.handleCloseDialog}
             onSubmit={this.handleSubmitEvaluation}
@@ -546,7 +546,7 @@ export class EvaluationViewShell extends React.Component<
             collections={this.props.collections}
             isLoadingModels={isLoadingModels}
             isLoadingPersonas={isLoadingPersonas}
-          /> */}
+          />
         </div>
       </div>
     );

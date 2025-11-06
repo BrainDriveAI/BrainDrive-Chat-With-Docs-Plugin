@@ -7,8 +7,8 @@ module.exports = {
   mode: "development",
   entry: "./src/index",
   output: {
-    path: path.resolve(__dirname, 'dist'),
-    // path: path.resolve(__dirname, 'C:\\Users\\beck\\Documents\\GitHub\\brain_drive\\BrainDrive\\backend\\plugins\\shared\\BrainDriveChatWithDocs\\vv1.5.0\\dist'),
+    // path: path.resolve(__dirname, 'dist'),
+    path: path.resolve(__dirname, 'C:\\Users\\beck\\Documents\\GitHub\\brain_drive\\BrainDrive\\backend\\plugins\\shared\\BrainDriveChatWithDocs\\v1.0.3\\dist'),
     publicPath: "auto",
     clean: true,
     library: {
