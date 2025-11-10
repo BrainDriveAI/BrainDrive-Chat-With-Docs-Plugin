@@ -1,4 +1,5 @@
 import React from 'react';
+import { Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -480,6 +481,30 @@ export class RunEvaluationDialog extends React.Component<
                   {questions.split('\n').filter((q) => q.trim()).length} questions
                 </p>
               )}
+            </div>
+          </div>
+
+          {/* Info Banner */}
+          <div
+            className="flex items-start gap-3 p-3 rounded-md mt-4"
+            style={{
+              backgroundColor: isDark ? '#1e3a5f' : '#eff6ff',
+              border: `1px solid ${isDark ? '#1e40af' : '#93c5fd'}`,
+            }}
+          >
+            <Info
+              className="flex-shrink-0 mt-0.5"
+              size={18}
+              style={{ color: isDark ? '#60a5fa' : '#3b82f6' }}
+            />
+            <div className="flex-1">
+              <p
+                className="text-sm"
+                style={{ color: isDark ? '#e0e7ff' : '#1e3a8a' }}
+              >
+                <strong>Note:</strong> Keep this page open to complete the evaluation.
+                You can leave and resume later from where you left off.
+              </p>
             </div>
           </div>
 
