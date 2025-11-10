@@ -31,6 +31,7 @@ export class EvaluationService {
   private currentPersona: PersonaInfo | null = null;
   private currentCollectionId: string | null = null;
   private processedQuestionIds: Set<string> = new Set();
+  private userId: string | undefined = undefined;
 
   constructor(
     initialState: EvaluationFeatureState,
@@ -40,6 +41,13 @@ export class EvaluationService {
     this.state = initialState;
     this.deps = deps;
     this.updateShellState = updateShellState;
+  }
+
+  /**
+   * Set user ID for backend persistence
+   */
+  public setUserId(userId: string | undefined): void {
+    this.userId = userId;
   }
 
   /**
@@ -91,16 +99,20 @@ export class EvaluationService {
     this.currentCollectionId = collectionId;
     this.processedQuestionIds.clear();
 
+    let evaluation_run_id: string | undefined;
+
     try {
       // Step 1: Start evaluation - get test questions with context
       console.log('Starting evaluation...');
 
-      const { evaluation_run_id, test_data } = await startPluginEvaluationWithQuestions({
+      const response = await startPluginEvaluationWithQuestions({
         collection_id: collectionId,
         questions,
         llm_model: this.currentLlmModel,
         persona: this.convertPersonaToRequest(selectedPersona),
       });
+      evaluation_run_id = response.evaluation_run_id;
+      const test_data = response.test_data;
       console.log(`Evaluation started: ${evaluation_run_id}`);
       console.log(`Total questions: ${test_data.length}`);
 
@@ -241,7 +253,7 @@ export class EvaluationService {
           });
 
           // Clear persistence on completion
-          EvaluationPersistence.clearState();
+          await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
           break;
         }
       }
@@ -252,7 +264,11 @@ export class EvaluationService {
       this.deps.setError(errorMsg);
 
       // Clear persistence on error
-      EvaluationPersistence.clearState();
+      if (evaluation_run_id) {
+        await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
+      } else {
+        EvaluationPersistence.clearState();
+      }
     }
   };
 
@@ -333,9 +349,9 @@ export class EvaluationService {
   };
 
   /**
-   * Save current evaluation state to persistence
+   * Save current evaluation state to persistence (localStorage + backend)
    */
-  private savePersistenceState(runId: string, testCases: TestCase[]): void {
+  private async savePersistenceState(runId: string, testCases: TestCase[]): Promise<void> {
     if (!this.currentModel || !this.currentLlmModel) return;
 
     const persistedState: PersistedEvaluationState = {
@@ -350,20 +366,34 @@ export class EvaluationService {
       timestamp: Date.now(),
     };
 
-    EvaluationPersistence.saveState(persistedState);
+    // Save to both localStorage and backend
+    await EvaluationPersistence.saveStateWithBackend(persistedState, this.userId);
   }
 
   /**
-   * Resume evaluation from persisted state
+   * Resume evaluation from persisted state (backend first, localStorage fallback)
    */
   public resumeEvaluation = async (): Promise<void> => {
-    const persistedState = EvaluationPersistence.loadState();
-    if (!persistedState) {
+    // First try localStorage to get runId
+    const localState = EvaluationPersistence.loadState();
+    if (!localState) {
       throw new Error('No persisted evaluation state found');
     }
 
+    // Try to load from backend with runId (if userId available)
+    let persistedState = localState;
+    if (this.userId) {
+      const backendState = await EvaluationPersistence.loadStateWithBackend(localState.runId, this.userId);
+      if (backendState) {
+        persistedState = backendState;
+        console.log('Resuming from backend state');
+      } else {
+        console.log('Resuming from localStorage');
+      }
+    }
+
     if (EvaluationPersistence.isStale(persistedState)) {
-      throw new Error('Persisted evaluation is too old (> 1 hour)');
+      throw new Error('Persisted evaluation is too old (> 7 days)');
     }
 
     this.updateState({ isRunning: true, error: null });
@@ -392,7 +422,7 @@ export class EvaluationService {
     if (remainingQuestions.length === 0) {
       console.log('All questions already processed');
       this.updateState({ isRunning: false });
-      EvaluationPersistence.clearState();
+      await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
       return;
     }
 
@@ -532,7 +562,7 @@ export class EvaluationService {
           });
 
           // Clear persistence on completion
-          EvaluationPersistence.clearState();
+          await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
           break;
         }
       }
@@ -543,7 +573,7 @@ export class EvaluationService {
       this.deps.setError(errorMsg);
 
       // Clear persistence on error
-      EvaluationPersistence.clearState();
+      await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
     }
   };
 }
