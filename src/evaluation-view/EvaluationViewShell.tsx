@@ -10,6 +10,7 @@ import type { Collection } from '../braindrive-plugin/pluginTypes';
 import { PROVIDER_SETTINGS_ID_MAP } from '../constants';
 import { getEvaluationRuns, getEvaluationResults } from '../services';
 import { RunEvaluationDialog } from './components/RunEvaluationDialog';
+import { EvaluationProgressBanner } from './components/EvaluationProgressBanner';
 import { EvaluationTabs, type TabType } from './components/EvaluationTabs';
 import { StatsCards } from './components/StatsCards';
 import { RunsTable } from './components/RunsTable';
@@ -17,6 +18,7 @@ import { ResultsSummary } from './components/ResultsSummary';
 import { ResultItem } from './components/ResultItem';
 import { FilterControls } from './components/FilterControls';
 import { StatusFilter } from './components/StatusFilter';
+import { ToastContainer, ToastManager } from './components/Toast';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import './EvaluationView.css';
@@ -58,6 +60,7 @@ export class EvaluationViewShell extends React.Component<
     showDialog: boolean;
     hasInProgressEvaluation: boolean;
     remainingQuestionsCount: number;
+    lastUpdatedTimestamp: number | null;
   }
 > {
   private evaluationService: EvaluationService;
@@ -85,6 +88,7 @@ export class EvaluationViewShell extends React.Component<
       showDialog: false,
       hasInProgressEvaluation: false,
       remainingQuestionsCount: 0,
+      lastUpdatedTimestamp: null,
     };
 
     this.evaluationService = new EvaluationService(
@@ -97,12 +101,47 @@ export class EvaluationViewShell extends React.Component<
     );
   }
 
-  componentDidMount() {
+  async componentDidMount() {
+    // Get user ID from BrainDrive auth
+    try {
+      const userResponse: any = await this.props.services.api.get('/api/v1/auth/me');
+      const userId = userResponse.id;
+      if (userId) {
+        this.evaluationService.setUserId(userId);
+      }
+    } catch (error) {
+      // Silent failure - continue without backend sync
+      console.warn('Could not fetch user ID:', error);
+    }
+
     this.loadModels();
     this.loadPersonas();
     this.loadRuns();
     this.checkForInProgressEvaluation();
   }
+
+  /**
+   * Format timestamp to "time ago" string
+   */
+  formatTimeAgo = (timestamp: number): string => {
+    const now = Date.now();
+    const diff = now - timestamp;
+    const seconds = Math.floor(diff / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const days = Math.floor(hours / 24);
+
+    if (days > 0) {
+      return days === 1 ? '1 day ago' : `${days} days ago`;
+    }
+    if (hours > 0) {
+      return hours === 1 ? '1 hour ago' : `${hours} hours ago`;
+    }
+    if (minutes > 0) {
+      return minutes === 1 ? '1 minute ago' : `${minutes} minutes ago`;
+    }
+    return 'just now';
+  };
 
   /**
    * Check for in-progress evaluation in localStorage
@@ -138,6 +177,7 @@ export class EvaluationViewShell extends React.Component<
       this.setState({
         hasInProgressEvaluation: true,
         remainingQuestionsCount: remaining,
+        lastUpdatedTimestamp: persistedState.timestamp,
       });
     } catch (error) {
       // If backend request fails (run not found, etc.), show banner anyway
@@ -146,6 +186,7 @@ export class EvaluationViewShell extends React.Component<
       this.setState({
         hasInProgressEvaluation: true,
         remainingQuestionsCount: remaining,
+        lastUpdatedTimestamp: persistedState.timestamp,
       });
     }
   };
@@ -272,6 +313,10 @@ export class EvaluationViewShell extends React.Component<
     questions: string[]
   ) => {
     this.setState({ showDialog: false });
+
+    // Show toast notification
+    ToastManager.success('Evaluation started');
+
     await this.evaluationService.runEvaluation(model, persona, collectionId, questions);
     // Reload runs after completion
     await this.loadRuns();
@@ -295,6 +340,11 @@ export class EvaluationViewShell extends React.Component<
       remainingQuestionsCount: 0,
     });
     this.handleOpenDialog();
+  };
+
+  handleStopEvaluation = () => {
+    this.evaluationService.stopEvaluation();
+    ToastManager.info('Evaluation paused');
   };
 
   handleDismissResumeBanner = () => {
@@ -388,6 +438,9 @@ export class EvaluationViewShell extends React.Component<
       showDialog,
       hasInProgressEvaluation,
       remainingQuestionsCount,
+      lastUpdatedTimestamp,
+      isRunning,
+      activeRun,
     } = this.state;
 
     const filteredResults = this.getFilteredResults();
@@ -404,12 +457,19 @@ export class EvaluationViewShell extends React.Component<
               <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
               <AlertDescription className="ml-2 flex items-center justify-between">
                 <div>
-                  <span className="font-medium text-blue-900 dark:text-blue-100">
-                    In-progress evaluation found
-                  </span>
-                  <span className="text-blue-700 dark:text-blue-300 ml-2">
-                    ({remainingQuestionsCount} questions remaining)
-                  </span>
+                  <div>
+                    <span className="font-medium text-blue-900 dark:text-blue-100">
+                      In-progress evaluation found
+                    </span>
+                    <span className="text-blue-700 dark:text-blue-300 ml-2">
+                      ({remainingQuestionsCount} questions remaining)
+                    </span>
+                  </div>
+                  {lastUpdatedTimestamp && (
+                    <div className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                      Last updated: {this.formatTimeAgo(lastUpdatedTimestamp)}
+                    </div>
+                  )}
                 </div>
                 <div className="flex gap-2 ml-4">
                   <Button
@@ -438,6 +498,17 @@ export class EvaluationViewShell extends React.Component<
                 </div>
               </AlertDescription>
             </Alert>
+          )}
+
+          {/* Progress Banner */}
+          {isRunning && activeRun && (
+            <EvaluationProgressBanner
+              processedCount={activeRun.evaluated_count || 0}
+              totalCount={activeRun.total_questions || 0}
+              accuracy={activeRun.accuracy || 0}
+              startTime={activeRun.started_at || new Date().toISOString()}
+              onAbort={this.handleStopEvaluation}
+            />
           )}
 
           {/* Header */}
@@ -547,6 +618,9 @@ export class EvaluationViewShell extends React.Component<
             isLoadingModels={isLoadingModels}
             isLoadingPersonas={isLoadingPersonas}
           />
+
+          {/* Toast Notifications */}
+          <ToastContainer />
         </div>
       </div>
     );
