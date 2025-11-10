@@ -1,8 +1,9 @@
 import type { ModelInfo, PersonaInfo } from '../components/chat-header/types';
 import type { TestCase, SubmissionItem } from './evaluationViewTypes';
+import * as stateApi from './evaluationStateApiService';
 
 const STORAGE_KEY = 'braindrive_evaluation_in_progress';
-const MAX_AGE_MS = 60 * 60 * 1000; // 1 hour
+const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 export interface PersistedEvaluationState {
   runId: string;
@@ -90,5 +91,61 @@ export class EvaluationPersistence {
     if (!state) return 0;
 
     return state.testCases.length - state.processedQuestionIds.length;
+  }
+
+  /**
+   * Save evaluation state to both localStorage AND backend
+   * Dual persistence for reliability
+   */
+  static async saveStateWithBackend(state: PersistedEvaluationState, userId?: string): Promise<void> {
+    // Always save to localStorage (fast, synchronous)
+    this.saveState(state);
+
+    // Also save to backend if userId available (durable, async)
+    if (userId) {
+      await stateApi.saveEvaluationState(state.runId, state, userId);
+      // Errors are handled gracefully in API service (returns null)
+    }
+  }
+
+  /**
+   * Load evaluation state from backend first, fallback to localStorage
+   * Provides cross-device and long-term persistence
+   */
+  static async loadStateWithBackend(runId: string, userId?: string): Promise<PersistedEvaluationState | null> {
+    // Try backend first if userId available
+    if (userId) {
+      const backendResponse = await stateApi.loadEvaluationState(runId, userId);
+      if (backendResponse?.state) {
+        console.log('Loaded evaluation state from backend');
+        return backendResponse.state;
+      }
+    }
+
+    // Fallback to localStorage
+    console.log('Loading evaluation state from localStorage');
+    return this.loadState();
+  }
+
+  /**
+   * Clear evaluation state from both localStorage AND backend
+   */
+  static async clearStateWithBackend(runId: string, userId?: string): Promise<void> {
+    // Clear localStorage
+    this.clearState();
+
+    // Also clear backend if userId available
+    if (userId) {
+      await stateApi.deleteEvaluationState(runId, userId);
+      // Errors are handled gracefully in API service
+    }
+  }
+
+  /**
+   * List all in-progress evaluations from backend
+   */
+  static async listInProgressEvaluations(userId: string): Promise<stateApi.StateSummary[]> {
+    const response = await stateApi.listInProgressEvaluations(userId, false);
+    return response?.evaluations || [];
   }
 }
