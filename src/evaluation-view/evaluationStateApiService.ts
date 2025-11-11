@@ -70,7 +70,6 @@ function transformStateToBackendFormat(state: PersistedEvaluationState) {
       id: state.model.serverId || state.model.providerId || 'unknown',
       provider: state.model.provider,
       name: state.model.name,
-      is_streaming: true, // Default to true for evaluations
     },
     llm_model: state.llmModel,
     persona: state.persona,

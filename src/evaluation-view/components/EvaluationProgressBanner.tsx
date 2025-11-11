@@ -1,13 +1,17 @@
 import React from 'react';
 import { Loader2, Pause } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { getStageDisplayText, type EvaluationStage } from '../evaluationStages';
 
 interface EvaluationProgressBannerProps {
-  processedCount: number;
+  processedCount: number; // For judging phase: evaluated_count
   totalCount: number;
   accuracy: number;
   startTime: string;
   onAbort: () => void;
+  currentStage?: EvaluationStage;
+  stageProgress?: number;
+  generatedCount?: number; // For generation phase: how many answers generated
 }
 
 interface EvaluationProgressBannerState {
@@ -90,12 +94,35 @@ export class EvaluationProgressBanner extends React.Component<
   };
 
   render() {
-    const { processedCount, totalCount, accuracy, onAbort } = this.props;
+    const {
+      processedCount,
+      totalCount,
+      accuracy,
+      onAbort,
+      currentStage,
+      stageProgress,
+      generatedCount,
+    } = this.props;
     const { elapsedSeconds } = this.state;
     const isDark = this.isDarkMode();
 
     const progressPercentage = totalCount > 0 ? Math.round((processedCount / totalCount) * 100) : 0;
     const eta = this.calculateETA();
+
+    // Get stage display text
+    const stageText = getStageDisplayText(
+      currentStage || 'retrieving_context',
+      generatedCount,
+      processedCount,
+      totalCount
+    );
+
+    // Show progress bar for early stages
+    const showProgressBar =
+      currentStage === 'retrieving_context' || currentStage === 'preparing_tests';
+
+    // Only show stats during judging phase (when we have evaluated_count)
+    const showStats = currentStage === 'judging' || currentStage === 'completed';
 
     return (
       <div
@@ -119,45 +146,14 @@ export class EvaluationProgressBanner extends React.Component<
             margin: '0 auto',
           }}
         >
-          {/* Left: Animated loader icon */}
+          {/* Left: Animated loader icon + stage text */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <Loader2
               className="animate-spin"
               size={20}
               style={{ color: isDark ? '#93c5fd' : '#1e40af' }}
             />
-            <span
-              style={{
-                fontSize: '14px',
-                fontWeight: 600,
-                color: isDark ? '#e0e7ff' : '#1e3a8a',
-              }}
-            >
-              Evaluation in progress
-            </span>
-          </div>
-
-          {/* Middle: Stats */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '24px',
-              flex: 1,
-              flexWrap: 'wrap',
-            }}
-          >
-            {/* Progress */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span
-                style={{
-                  fontSize: '12px',
-                  color: isDark ? '#93c5fd' : '#1e40af',
-                  fontWeight: 500,
-                }}
-              >
-                Progress
-              </span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
               <span
                 style={{
                   fontSize: '14px',
@@ -165,12 +161,43 @@ export class EvaluationProgressBanner extends React.Component<
                   color: isDark ? '#e0e7ff' : '#1e3a8a',
                 }}
               >
-                {processedCount}/{totalCount} ({progressPercentage}%)
+                {stageText}
               </span>
+              {showProgressBar && stageProgress !== undefined && (
+                <div
+                  style={{
+                    width: '200px',
+                    height: '4px',
+                    backgroundColor: isDark ? '#1e3a8a' : '#e5e7eb',
+                    borderRadius: '2px',
+                    overflow: 'hidden',
+                  }}
+                >
+                  <div
+                    style={{
+                      width: `${stageProgress}%`,
+                      height: '100%',
+                      backgroundColor: '#3b82f6',
+                      transition: 'width 0.3s ease',
+                    }}
+                  />
+                </div>
+              )}
             </div>
+          </div>
 
-            {/* Accuracy */}
-            {processedCount > 0 && (
+          {/* Middle: Stats - Only show during judging phase */}
+          {showStats && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '24px',
+                flex: 1,
+                flexWrap: 'wrap',
+              }}
+            >
+              {/* Progress */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                 <span
                   style={{
@@ -179,7 +206,7 @@ export class EvaluationProgressBanner extends React.Component<
                     fontWeight: 500,
                   }}
                 >
-                  Accuracy
+                  Progress
                 </span>
                 <span
                   style={{
@@ -188,55 +215,79 @@ export class EvaluationProgressBanner extends React.Component<
                     color: isDark ? '#e0e7ff' : '#1e3a8a',
                   }}
                 >
-                  {(accuracy * 100).toFixed(1)}%
+                  {processedCount}/{totalCount} ({progressPercentage}%)
                 </span>
               </div>
-            )}
 
-            {/* Time Elapsed */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span
-                style={{
-                  fontSize: '12px',
-                  color: isDark ? '#93c5fd' : '#1e40af',
-                  fontWeight: 500,
-                }}
-              >
-                Time Elapsed
-              </span>
-              <span
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: isDark ? '#e0e7ff' : '#1e3a8a',
-                }}
-              >
-                {this.formatTime(elapsedSeconds)}
-              </span>
-            </div>
+              {/* Accuracy */}
+              {processedCount > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                  <span
+                    style={{
+                      fontSize: '12px',
+                      color: isDark ? '#93c5fd' : '#1e40af',
+                      fontWeight: 500,
+                    }}
+                  >
+                    Accuracy
+                  </span>
+                  <span
+                    style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: isDark ? '#e0e7ff' : '#1e3a8a',
+                    }}
+                  >
+                    {(accuracy * 100).toFixed(1)}%
+                  </span>
+                </div>
+              )}
 
-            {/* ETA */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-              <span
-                style={{
-                  fontSize: '12px',
-                  color: isDark ? '#93c5fd' : '#1e40af',
-                  fontWeight: 500,
-                }}
-              >
-                ETA
-              </span>
-              <span
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: isDark ? '#e0e7ff' : '#1e3a8a',
-                }}
-              >
-                {eta}
-              </span>
+              {/* Time Elapsed */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: isDark ? '#93c5fd' : '#1e40af',
+                    fontWeight: 500,
+                  }}
+                >
+                  Time Elapsed
+                </span>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: isDark ? '#e0e7ff' : '#1e3a8a',
+                  }}
+                >
+                  {this.formatTime(elapsedSeconds)}
+                </span>
+              </div>
+
+              {/* ETA */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                <span
+                  style={{
+                    fontSize: '12px',
+                    color: isDark ? '#93c5fd' : '#1e40af',
+                    fontWeight: 500,
+                  }}
+                >
+                  ETA
+                </span>
+                <span
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: isDark ? '#e0e7ff' : '#1e3a8a',
+                  }}
+                >
+                  {eta}
+                </span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Right: Abort button */}
           <Button

@@ -1,4 +1,5 @@
 // Evaluation view types based on plugin evaluation API
+import type { EvaluationStage } from './evaluationStages';
 
 export interface TestCase {
   test_case_id: string;
@@ -58,6 +59,10 @@ export interface EvaluationFeatureState {
   isGenerating: boolean;
   progress: number;
   error: string | null;
+
+  // Stage tracking
+  currentStage?: EvaluationStage;
+  stageProgress?: number; // 0-100 overall progress
 
   // Results
   currentResults: SubmitEvaluationResponse | null;

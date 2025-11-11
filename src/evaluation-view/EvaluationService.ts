@@ -15,6 +15,7 @@ import type {
   PersonaModelSettings,
 } from './evaluationViewTypes';
 import { EvaluationPersistence, type PersistedEvaluationState } from './EvaluationPersistence';
+import { calculateStageProgress, type EvaluationStage } from './evaluationStages';
 
 interface ServiceDependencies {
   aiService: AIService;
@@ -89,7 +90,6 @@ export class EvaluationService {
     collectionId: string,
     questions: string[]
   ): Promise<void> => {
-    this.updateState({ isRunning: true, error: null, progress: 0 });
     this.abortController = new AbortController();
 
     // Save current run config
@@ -102,8 +102,29 @@ export class EvaluationService {
     let evaluation_run_id: string | undefined;
 
     try {
-      // Step 1: Start evaluation - get test questions with context
-      console.log('Starting evaluation...');
+      // Stage 1: Retrieving context (90+ seconds)
+      console.log('Starting evaluation - retrieving context...');
+      this.updateState({
+        isRunning: true,
+        error: null,
+        progress: 0,
+        currentStage: 'retrieving_context',
+        stageProgress: calculateStageProgress('retrieving_context', 0.1),
+        activeRun: {
+          id: 'pending',
+          total_questions: questions.length,
+          correct_count: 0,
+          incorrect_count: 0,
+          evaluated_count: 0,
+          accuracy: 0,
+          started_at: new Date().toISOString(),
+          is_completed: false,
+          progress: 0,
+          status: 'running',
+          duration_seconds: null,
+          run_date: new Date().toISOString(),
+        },
+      });
 
       const response = await startPluginEvaluationWithQuestions({
         collection_id: collectionId,
@@ -113,10 +134,12 @@ export class EvaluationService {
       });
       evaluation_run_id = response.evaluation_run_id;
       const test_data = response.test_data;
-      console.log(`Evaluation started: ${evaluation_run_id}`);
-      console.log(`Total questions: ${test_data.length}`);
+      console.log(`Context retrieved for ${test_data.length} questions`);
 
+      // Stage 2: Preparing tests
       this.updateState({
+        currentStage: 'preparing_tests',
+        stageProgress: calculateStageProgress('preparing_tests', 0.5),
         activeRunId: evaluation_run_id,
         testCases: test_data,
         activeRun: {
@@ -138,7 +161,7 @@ export class EvaluationService {
       // Initial persistence save
       this.savePersistenceState(evaluation_run_id, test_data);
 
-      // Step 2: Process questions in batches
+      // Stage 3: Generate answers for all questions
       const BATCH_SIZE = 3;
       const batches: TestCase[][] = [];
 
@@ -146,22 +169,32 @@ export class EvaluationService {
         batches.push(test_data.slice(i, i + BATCH_SIZE));
       }
 
+      console.log('Starting answer generation loop...');
+
+      // Phase 1: Generate and submit ALL answers (no polling between batches)
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        // Check if aborted
         if (this.abortController?.signal.aborted) {
-          console.log('Evaluation aborted by user');
+          console.log('Evaluation aborted');
           this.updateState({ isRunning: false });
-          // Keep persistence on abort (allows resume)
           return;
         }
 
         const batch = batches[batchIndex];
-        console.log(`Processing batch ${batchIndex + 1}/${batches.length}`);
+        const answeredSoFar = this.processedQuestionIds.size;
 
-        // Step 3: Generate LLM answers for this batch
-        this.updateState({ isGenerating: true });
+        console.log(`Generating answers for batch ${batchIndex + 1}/${batches.length}`);
+
+        // Update to generating stage with progress
+        this.updateState({
+          isGenerating: true,
+          currentStage: 'generating_answers',
+          stageProgress: calculateStageProgress(
+            'generating_answers',
+            answeredSoFar / test_data.length
+          ),
+        });
+
         const submissions: SubmissionItem[] = [];
-
         for (const testCase of batch) {
           const answer = await this.generateAnswerForQuestion(
             testCase,
@@ -174,89 +207,112 @@ export class EvaluationService {
             retrieved_context: testCase.retrieved_context,
           });
 
-          // Mark question as processed
           this.processedQuestionIds.add(testCase.test_case_id);
+
+          // Update progress during generation
+          this.updateState({
+            stageProgress: calculateStageProgress(
+              'generating_answers',
+              this.processedQuestionIds.size / test_data.length
+            ),
+          });
         }
 
         this.updateState({ isGenerating: false });
 
-        // Step 4: Submit batch for judging (returns 202 immediately)
-        console.log(`Submitting ${submissions.length} answers...`);
-        const submitResponse = await submitPluginEvaluation({
+        // Submit batch for judging (returns 202 immediately)
+        console.log(`Submitting batch ${batchIndex + 1} (${submissions.length} answers)`);
+        await submitPluginEvaluation({
           evaluation_run_id,
           submissions,
         });
 
-        console.log(`Batch ${batchIndex + 1} submitted:`, submitResponse.message);
-
-        // Step 5: Poll for results until batch is judged
-        const previousEvaluatedCount = this.state.activeRun?.evaluated_count || 0;
-        const targetCount = previousEvaluatedCount + submissions.length;
-
-        console.log(`Waiting for judging... (target: ${targetCount})`);
-
-        while (true) {
-          // Check if aborted
-          if (this.abortController?.signal.aborted) {
-            console.log('Evaluation aborted during polling');
-            this.updateState({ isRunning: false });
-            return;
-          }
-
-          // Wait 2 seconds before polling
-          await new Promise(resolve => setTimeout(resolve, 2000));
-
-          // Poll for results
-          const resultsData = await getEvaluationResults(evaluation_run_id);
-          const evaluationRun = resultsData.evaluation_run;
-
-          console.log(`Poll result: evaluated ${evaluationRun.evaluated_count}/${evaluationRun.total_questions}`);
-
-          // Update UI with latest progress
-          this.updateState({
-            progress: evaluationRun.progress,
-            activeRun: {
-              ...this.state.activeRun!,
-              evaluated_count: evaluationRun.evaluated_count,
-              progress: evaluationRun.progress,
-              correct_count: evaluationRun.correct_count,
-              incorrect_count: evaluationRun.incorrect_count,
-              accuracy: evaluationRun.accuracy,
-            },
-          });
-
-          // Check if batch is processed
-          if (evaluationRun.evaluated_count >= targetCount) {
-            console.log(`Batch ${batchIndex + 1} judged successfully`);
-            break;
-          }
-        }
-
-        // Save progress to persistence
+        // Save progress
         this.savePersistenceState(evaluation_run_id, test_data);
 
-        // Check if completed
-        const currentRun = this.state.activeRun!;
-        if (currentRun.evaluated_count === currentRun.total_questions) {
-          console.log('Evaluation completed!');
-          const completedRun: EvaluationRun = {
-            ...currentRun,
-            completed_at: new Date().toISOString(),
-            is_completed: true,
-            progress: 1.0,
-          };
+        // Continue to next batch - NO POLLING
+      }
 
-          this.updateState({
-            isRunning: false,
-            activeRun: completedRun,
-            pastRuns: [completedRun, ...this.state.pastRuns],
-          });
+      // Phase 2: All answers submitted - now wait and poll for judging
+      console.log('All answers generated and submitted. Starting judging phase...');
 
-          // Clear persistence on completion
-          await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
+      this.updateState({
+        currentStage: 'judging',
+        stageProgress: calculateStageProgress('judging', 0),
+        isGenerating: false,
+      });
+
+      // Wait 30 seconds before polling
+      console.log('Waiting 30 seconds before polling judge results...');
+      await new Promise(resolve => setTimeout(resolve, 30000));
+
+      console.log('Starting polling for judge results...');
+
+      // Poll until all judged
+      const POLL_INTERVAL_MS = 10000; // 10 seconds between polls
+      const MAX_POLL_ATTEMPTS = 60; // 10 minutes max (60 * 10s)
+      let pollAttempts = 0;
+
+      while (true) {
+        if (this.abortController?.signal.aborted) {
+          console.log('Evaluation aborted during judging');
+          this.updateState({ isRunning: false });
+          return;
+        }
+
+        if (pollAttempts++ >= MAX_POLL_ATTEMPTS) {
+          throw new Error('Judging timeout after 10 minutes');
+        }
+
+        await new Promise(resolve => setTimeout(resolve, POLL_INTERVAL_MS));
+
+        const resultsData = await getEvaluationResults(evaluation_run_id);
+        const evaluationRun = resultsData.evaluation_run;
+
+        console.log(`Poll ${pollAttempts}: ${evaluationRun.evaluated_count}/${evaluationRun.total_questions} judged`);
+
+        // Update UI with judge progress
+        this.updateState({
+          progress: evaluationRun.progress,
+          stageProgress: calculateStageProgress('judging', evaluationRun.progress),
+          activeRun: {
+            ...this.state.activeRun!,
+            evaluated_count: evaluationRun.evaluated_count,
+            progress: evaluationRun.progress,
+            correct_count: evaluationRun.correct_count,
+            incorrect_count: evaluationRun.incorrect_count,
+            accuracy: evaluationRun.accuracy,
+          },
+        });
+
+        // Check if completed (either by status or all judged)
+        if (
+          evaluationRun.status === 'completed' ||
+          evaluationRun.evaluated_count >= evaluationRun.total_questions
+        ) {
+          console.log('All questions judged or evaluation completed!');
           break;
         }
       }
+
+      // Completed
+      console.log('Evaluation completed!');
+      const completedRun: EvaluationRun = {
+        ...this.state.activeRun!,
+        completed_at: new Date().toISOString(),
+        is_completed: true,
+        progress: 1.0,
+      };
+
+      this.updateState({
+        isRunning: false,
+        currentStage: 'completed',
+        stageProgress: 100,
+        activeRun: completedRun,
+        pastRuns: [completedRun, ...this.state.pastRuns],
+      });
+
+      await EvaluationPersistence.clearStateWithBackend(evaluation_run_id, this.userId);
     } catch (error) {
       console.error('Evaluation failed:', error);
       const errorMsg = error instanceof Error ? error.message : 'Unknown error';

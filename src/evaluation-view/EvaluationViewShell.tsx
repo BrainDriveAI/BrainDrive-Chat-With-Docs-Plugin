@@ -104,7 +104,7 @@ export class EvaluationViewShell extends React.Component<
   async componentDidMount() {
     // Get user ID from BrainDrive auth
     try {
-      const userResponse: any = await this.props.services.api.get('/api/v1/auth/me');
+      const userResponse: any = await this.props.services?.api?.get('/api/v1/auth/me');
       const userId = userResponse.id;
       if (userId) {
         this.evaluationService.setUserId(userId);
@@ -167,7 +167,7 @@ export class EvaluationViewShell extends React.Component<
       const resultsData = await getEvaluationResults(persistedState.runId);
 
       // If backend shows evaluation is completed, clear localStorage
-      if (resultsData.evaluation_run.is_completed) {
+      if (resultsData.evaluation_run.is_completed || resultsData.evaluation_run.status === 'completed') {
         console.log('Backend shows evaluation completed, clearing persisted state');
         EvaluationPersistence.clearState();
         return;
@@ -180,14 +180,11 @@ export class EvaluationViewShell extends React.Component<
         lastUpdatedTimestamp: persistedState.timestamp,
       });
     } catch (error) {
-      // If backend request fails (run not found, etc.), show banner anyway
-      // User can choose to resume or start fresh
-      console.warn('Failed to verify backend status, showing resume banner anyway:', error);
-      this.setState({
-        hasInProgressEvaluation: true,
-        remainingQuestionsCount: remaining,
-        lastUpdatedTimestamp: persistedState.timestamp,
-      });
+      // If backend request fails (run not found, network error, etc.), don't show banner
+      // Only show banner when backend explicitly confirms run is in progress
+      console.warn('Failed to verify backend status, not showing resume banner:', error);
+      // Optionally clear localStorage since we can't verify the run exists
+      // EvaluationPersistence.clearState();
     }
   };
 
@@ -318,7 +315,9 @@ export class EvaluationViewShell extends React.Component<
     ToastManager.success('Evaluation started');
 
     await this.evaluationService.runEvaluation(model, persona, collectionId, questions);
-    // Reload runs after completion
+
+    // Clear in-progress banner and reload runs after completion
+    this.setState({ hasInProgressEvaluation: false });
     await this.loadRuns();
   };
 
@@ -508,6 +507,9 @@ export class EvaluationViewShell extends React.Component<
               accuracy={activeRun.accuracy || 0}
               startTime={activeRun.started_at || new Date().toISOString()}
               onAbort={this.handleStopEvaluation}
+              currentStage={this.state.currentStage}
+              stageProgress={this.state.stageProgress}
+              generatedCount={this.evaluationService['processedQuestionIds']?.size || 0}
             />
           )}
 
