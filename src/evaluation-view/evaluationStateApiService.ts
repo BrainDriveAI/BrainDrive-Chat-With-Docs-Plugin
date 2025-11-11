@@ -61,6 +61,47 @@ export interface ApiError {
 }
 
 /**
+ * Transform frontend state (camelCase) to backend format (snake_case)
+ */
+function transformStateToBackendFormat(state: PersistedEvaluationState) {
+  return {
+    user_id: '', // Will be set by caller
+    model: {
+      id: state.model.serverId || state.model.providerId || 'unknown',
+      provider: state.model.provider,
+      name: state.model.name,
+      is_streaming: true, // Default to true for evaluations
+    },
+    llm_model: state.llmModel,
+    persona: state.persona,
+    collection_id: state.collectionId,
+    test_cases: state.testCases,
+    processed_question_ids: state.processedQuestionIds,
+    current_batch: state.currentBatch,
+    last_updated: new Date(state.timestamp).toISOString(),
+  };
+}
+
+/**
+ * Transform backend state (snake_case) to frontend format (camelCase)
+ */
+function transformStateFromBackendFormat(backendState: any, runId: string): PersistedEvaluationState {
+  return {
+    runId: runId, // Use runId from path parameter
+    model: backendState.model,
+    llmModel: backendState.llm_model || backendState.llmModel,
+    persona: backendState.persona,
+    collectionId: backendState.collection_id || backendState.collectionId,
+    testCases: backendState.test_cases || backendState.testCases,
+    processedQuestionIds: backendState.processed_question_ids || backendState.processedQuestionIds,
+    currentBatch: backendState.current_batch || backendState.currentBatch,
+    timestamp: backendState.last_updated
+      ? new Date(backendState.last_updated).getTime()
+      : backendState.timestamp || Date.now(),
+  };
+}
+
+/**
  * Save evaluation state to backend
  * @param runId - Evaluation run ID
  * @param state - Persisted evaluation state
@@ -73,21 +114,16 @@ export async function saveEvaluationState(
   userId: string
 ): Promise<SaveStateResponse | null> {
   try {
-    // Convert timestamp to ISO string for backend
-    const stateWithISO = {
-      ...state,
-      last_updated: new Date(state.timestamp).toISOString(),
-    };
+    // Transform state to backend format
+    const backendState = transformStateToBackendFormat(state);
+    backendState.user_id = userId;
 
     const response = await fetch(`${EVALUATION_STATE_API_BASE}/${runId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        ...stateWithISO,
-        user_id: userId,
-      }),
+      body: JSON.stringify(backendState),
     });
 
     if (!response.ok) {
@@ -131,7 +167,7 @@ export async function loadEvaluationState(
       return null;
     }
 
-    const data: LoadStateResponse = await response.json();
+    const data = await response.json();
 
     // If state is expired, return null (soft error)
     if (data.metadata?.is_expired) {
@@ -139,7 +175,13 @@ export async function loadEvaluationState(
       return null;
     }
 
-    return data;
+    // Transform backend state to frontend format
+    const transformedData: LoadStateResponse = {
+      state: transformStateFromBackendFormat(data.state, runId),
+      metadata: data.metadata,
+    };
+
+    return transformedData;
   } catch (error) {
     console.error('Error loading evaluation state:', error);
     return null;
