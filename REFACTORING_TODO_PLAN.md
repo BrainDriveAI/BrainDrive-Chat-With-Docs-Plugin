@@ -165,20 +165,25 @@ Move orchestration logic from components to services.
 **Analysis completed**: CollectionChatViewShell.tsx has 2514 lines with 900-1000 lines extractable
 
 ### Priority 1: Conversation Management (200+ lines)
-- [ ] Create `src/domain/conversations/ConversationRepository.ts`
+- [x] Create `src/domain/conversations/ConversationRepository.ts` ✅ DONE
   - Extract `fetchConversations()` (117 lines)
   - Extract `refreshConversationsList()` (81 lines)
   - Extract `sortConversationsByRecency()`, `getConversationSortTimestamp()`
   - Eliminate duplicate logic between fetch/refresh
+
+- [x] Create `src/domain/users/UserRepository.ts` ✅ DONE
+  - Extract `getCurrentUser()`, `getCurrentUserId()`
 
 - [ ] Create `src/domain/conversations/ConversationLoader.ts`
   - Extract `loadConversationWithPersona()` (138 lines - very complex)
   - Extract `loadConversationHistory()` (63 lines)
   - Extract `updateConversationPersona()` (12 lines)
 
+- [x] Tests ✅ DONE
+  - Create `src/domain/conversations/__tests__/ConversationRepository.test.ts` (20 tests)
+  - Create `src/domain/users/__tests__/UserRepository.test.ts` (5 tests)
 - [ ] Tests
-  - Create `src/domain/__tests__/ConversationRepository.test.ts`
-  - Create `src/domain/__tests__/ConversationLoader.test.ts`
+  - Create `src/domain/conversations/__tests__/ConversationLoader.test.ts`
 
 ### Priority 2: Streaming Chat Handler (300+ lines)
 - [ ] Create `src/domain/chat/StreamingChatHandler.ts`
@@ -201,33 +206,59 @@ Move orchestration logic from components to services.
 - [ ] Tests
   - Create `src/domain/__tests__/PersonaResolver.test.ts`
 
-### Priority 4: Document Upload Handler (90+ lines)
-- [ ] Create `src/domain/documents/DocumentUploadHandler.ts`
-  - Extract `handleFileUploadClick()` (59 lines)
-  - Extract `handleDocumentsProcessed()` (29 lines)
-  - Extract `handleDocumentError()` (3 lines)
+### Priority 4: Model Selection Service (150+ lines)
+- [ ] Create `src/domain/models/ModelSelectionService.ts`
+  - Extract `handleModelChange()` (15 lines)
+  - Extract `broadcastModelSelection()` (22 lines)
+  - Extract `resolvePendingModelSelection()` (44 lines)
+  - Extract `getModelKey()`, `getModelKeyFromInfo()` (14 lines)
+  - Consider merging FallbackModelSelector if logic overlaps
 
 - [ ] Tests
-  - Create `src/domain/__tests__/DocumentUploadHandler.test.ts`
+  - Create `src/domain/models/__tests__/ModelSelectionService.test.ts`
 
-### Priority 5: Page Settings Service (60+ lines)
+### Priority 5: Document Upload Handler - SKIP (Not used, comment out for dead code removal)
+- [ ] Comment out unused document upload methods in CollectionChatViewShell
+  - `handleFileUploadClick()`, `handleDocumentsProcessed()`, `handleDocumentError()`
+  - Note: DocumentManagerModal handles document management
+
+### Priority 6: Page Settings Service (60+ lines)
 - [ ] Create `src/domain/settings/PageSettingsService.ts`
   - Extract `getSettingKey()`, `getSavedStreamingMode()`, `saveStreamingMode()`
   - Handles page-specific settings with global fallback
 
 - [ ] Tests
-  - Create `src/domain/__tests__/PageSettingsService.test.ts`
+  - Create `src/domain/settings/__tests__/PageSettingsService.test.ts`
 
-### Priority 6: Scroll State Manager (265 lines) - Service Class
-- [ ] Create `src/domain/ui/ScrollStateManager.ts`
+### Priority 7: Chat Scroll Manager (265 lines) - Configurable Service Class
+- [ ] Create `src/domain/ui/ChatScrollManager.ts`
   - Extract all 14 scroll-related methods to service class
+  - Make configurable (constants injected) for reuse in other chat components
   - User intent tracking, auto-scroll with grace period
   - Anchor offset calculation, scroll state machine
   - **Note**: Keep as service class (not hook) - plugin requires class components
 
 - [ ] Tests
-  - Create `src/domain/__tests__/ScrollStateManager.test.ts`
+  - Create `src/domain/ui/__tests__/ChatScrollManager.test.ts`
   - Mock DOM elements and scroll events
+
+### Priority 8: Theme Manager (40+ lines)
+- [ ] Create `src/domain/ui/ThemeManager.ts`
+  - Extract `initializeThemeService()` (18 lines)
+  - Theme listener management
+  - Theme state updates
+
+- [ ] Tests
+  - Create `src/domain/ui/__tests__/ThemeManager.test.ts`
+
+### Priority 9: Page Context Service (35+ lines)
+- [ ] Create `src/domain/context/PageContextService.ts`
+  - Extract `initializePageContextService()` (15 lines)
+  - Extract `getCurrentPageContext()` (5 lines)
+  - Context subscription management
+
+- [ ] Tests
+  - Create `src/domain/context/__tests__/PageContextService.test.ts`
 
 ### Integration with CollectionChatViewShell
 - [ ] Update component to use new services
