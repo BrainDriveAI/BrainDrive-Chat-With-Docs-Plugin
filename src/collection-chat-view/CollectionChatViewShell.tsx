@@ -33,6 +33,8 @@ import {
 import { AIService, DocumentService } from '../services';
 import { DocumentManagerModal } from '../document-view/DocumentManagerModal';
 import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
+import { UserRepository } from '../domain/users/UserRepository';
+import { ConversationRepository } from '../domain/conversations/ConversationRepository';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -59,6 +61,8 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private documentService: DocumentService | null = null;
   private modelConfigLoader: ModelConfigLoader | null = null;
   private modelSelector: FallbackModelSelector;
+  private userRepository: UserRepository | null = null;
+  private conversationRepository: ConversationRepository | null = null;
   private currentStreamingAbortController: AbortController | null = null;
   private menuButtonRef: HTMLButtonElement | null = null;
   // Keep the live edge comfortably in view instead of snapping flush bottom
@@ -278,6 +282,12 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Load initial data (models and conversations)
    */
   loadInitialData = async () => {
+    // Initialize repositories
+    if (this.props.services?.api) {
+      this.userRepository = new UserRepository({ api: this.props.services.api });
+      this.conversationRepository = new ConversationRepository({ api: this.props.services.api });
+    }
+
     await Promise.all([
       this.loadProviderSettings(),
       this.fetchConversations()
@@ -516,57 +526,26 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Refresh conversations list without interfering with current conversation
    */
   refreshConversationsList = async () => {
-    if (!this.props.services?.api) {
+    if (!this.userRepository || !this.conversationRepository) {
       return;
     }
-    
+
     try {
-      // First, get the current user's information to get their ID
-      const userResponse: any = await this.props.services.api.get('/api/v1/auth/me');
-      
-      // Extract the user ID from the response
-      let userId = userResponse.id;
-      
-      if (!userId) {
-        return;
-      }
-      
+      // Get current user ID
+      const userId = await this.userRepository.getCurrentUserId();
+
       // Get current page context for page-specific conversations
       const pageContext = this.getCurrentPageContext();
-      const params: any = {
+
+      // Fetch conversations
+      const conversations = await this.conversationRepository.fetchConversations({
+        userId,
+        conversationType: this.props.conversationType || 'chat',
+        pageId: pageContext?.pageId || null,
         skip: 0,
-        limit: 50,
-        conversation_type: this.props.conversationType || "chat"
-      };
-      
-      // Add page_id if available for page-specific conversations
-      if (pageContext?.pageId) {
-        params.page_id = pageContext.pageId;
-      }
-      
-      const response: any = await this.props.services.api.get(
-        `/api/v1/users/${userId}/conversations`,
-        { params }
-      );
-      
-      let conversations = [];
-      
-      if (Array.isArray(response)) {
-        conversations = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        conversations = response.data;
-      } else if (response) {
-        try {
-          if (typeof response === 'object') {
-            if (response.id && response.user_id) {
-              conversations = [response];
-            }
-          }
-        } catch (parseError) {
-          // Error parsing response
-        }
-      }
-      
+        limit: 50
+      });
+
       if (conversations.length === 0) {
         this.setState({
           conversations: [],
@@ -574,24 +553,19 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
         });
         return;
       }
-      
-      // Validate conversation objects
-      const validConversations = conversations.filter((conv: any) => {
-        return conv && typeof conv === 'object' && conv.id && conv.user_id;
-      });
-      
-      const sortedConversations = this.sortConversationsByRecency(validConversations);
-      
+
+      const sortedConversations = this.conversationRepository.sortByRecency(conversations);
+
       // Update conversations list and select current conversation if it exists
-      const currentConversation = this.state.conversation_id 
+      const currentConversation = this.state.conversation_id
         ? sortedConversations.find(conv => conv.id === this.state.conversation_id)
         : null;
-      
+
       this.setState({
         conversations: sortedConversations,
         selectedConversation: currentConversation || this.state.selectedConversation
       });
-      
+
     } catch (error: any) {
       console.error('Error refreshing conversations list:', error);
     }
@@ -601,86 +575,45 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Fetch conversations from the API
    */
   fetchConversations = async () => {
-    if (!this.props.services?.api) {
+    if (!this.userRepository || !this.conversationRepository) {
       this.setState({
         isLoadingHistory: false,
-        error: 'API service not available'
+        error: 'Repository services not available'
       });
       return;
     }
-    
+
     try {
       this.setState({ isLoadingHistory: true, error: '' });
-      
-      // First, get the current user's information to get their ID
-      const userResponse: any = await this.props.services.api.get('/api/v1/auth/me');
-      
-      // Extract the user ID from the response
-      let userId = userResponse.id;
-      
-      if (!userId) {
-        throw new Error('Could not get current user ID');
-      }
-      
+
+      // Get current user ID
+      const userId = await this.userRepository.getCurrentUserId();
+
       // Get current page context for page-specific conversations
       const pageContext = this.getCurrentPageContext();
-      const params: any = {
+
+      // Fetch conversations
+      const conversations = await this.conversationRepository.fetchConversations({
+        userId,
+        conversationType: this.props.conversationType || 'chat',
+        pageId: pageContext?.pageId || null,
         skip: 0,
-        limit: 50, // Fetch up to 50 conversations
-        conversation_type: this.props.conversationType || "chat" // Filter by conversation type
-      };
-      
-      // Add page_id if available for page-specific conversations
-      if (pageContext?.pageId) {
-        params.page_id = pageContext.pageId;
-      }
-      
-      // Use the user ID as is - backend now handles IDs with or without dashes
-      const response: any = await this.props.services.api.get(
-        `/api/v1/users/${userId}/conversations`,
-        { params }
-      );
-      
-      let conversations = [];
-      
-      if (Array.isArray(response)) {
-        conversations = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        conversations = response.data;
-      } else if (response) {
-        // Try to extract conversations from the response in a different way
-        try {
-          if (typeof response === 'object') {
-            // Check if the response itself might be the conversations array
-            if (response.id && response.user_id) {
-              conversations = [response];
-            }
-          }
-        } catch (parseError) {
-          // Error parsing response
-        }
-      }
-      
+        limit: 50
+      });
+
       if (conversations.length === 0) {
-        // No conversations yet, but this is not an error
         this.setState({
           conversations: [],
           isLoadingHistory: false
         });
-        
         return;
       }
-      
-      // Validate conversation objects
-      const validConversations = conversations.filter((conv: any) => {
-        return conv && typeof conv === 'object' && conv.id && conv.user_id;
-      });
-      
-      const sortedConversations = this.sortConversationsByRecency(validConversations);
+
+      const sortedConversations = this.conversationRepository.sortByRecency(conversations);
 
       // Auto-select the most recent conversation if available
       const mostRecentConversation = sortedConversations.length > 0 ? sortedConversations[0] : null;
-      
+
       this.setState({
         conversations: sortedConversations,
         selectedConversation: mostRecentConversation,
@@ -1860,43 +1793,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     return { distanceFromBottom, dynamicOffset };
   };
 
-  private getConversationSortTimestamp = (conversation: any): number => {
-    if (!conversation || typeof conversation !== 'object') {
-      return 0;
-    }
-
-    const candidateFields = [
-      conversation.last_message_at,
-      conversation.lastMessageAt,
-      conversation.latest_message_at,
-      conversation.latestMessageAt,
-      conversation.started_at,
-      conversation.startedAt,
-      conversation.updated_at,
-      conversation.updatedAt,
-      conversation.created_at,
-      conversation.createdAt
-    ];
-
-    for (const maybeDate of candidateFields) {
-      if (!maybeDate) continue;
-      const timestamp = new Date(maybeDate).getTime();
-      if (!Number.isNaN(timestamp)) {
-        return timestamp;
-      }
-    }
-
-    return 0;
-  };
-
-  private sortConversationsByRecency = (conversations: any[]): any[] => {
-    return [...conversations].sort((a, b) => {
-      const timeA = this.getConversationSortTimestamp(a);
-      const timeB = this.getConversationSortTimestamp(b);
-
-      return timeB - timeA;
-    });
-  };
 
   /**
    * Check if user is near the bottom of the chat
