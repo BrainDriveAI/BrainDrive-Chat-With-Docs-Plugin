@@ -32,6 +32,7 @@ import {
 // Import services
 import { AIService, DocumentService } from '../services';
 import { DocumentManagerModal } from '../document-view/DocumentManagerModal';
+import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -56,6 +57,8 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private debouncedScrollToBottom: (options?: ScrollToBottomOptions) => void;
   private aiService: AIService | null = null;
   private documentService: DocumentService | null = null;
+  private modelConfigLoader: ModelConfigLoader | null = null;
+  private modelSelector: FallbackModelSelector;
   private currentStreamingAbortController: AbortController | null = null;
   private menuButtonRef: HTMLButtonElement | null = null;
   // Keep the live edge comfortably in view instead of snapping flush bottom
@@ -152,9 +155,15 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     
     // Initialize AI service
     this.aiService = new AIService(props.services.api);
-    
+
     // Initialize Document service with authenticated API service
     this.documentService = new DocumentService(props.services.api);
+
+    // Initialize model configuration services
+    if (props.services.api) {
+      this.modelConfigLoader = new ModelConfigLoader(props.services.api);
+    }
+    this.modelSelector = new FallbackModelSelector();
   }
 
   componentDidMount() {
@@ -442,10 +451,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Load provider settings and models
    */
+  /**
+   * Load provider settings using ModelConfigLoader (refactored)
+   * Replaces 160+ lines of duplicate logic with domain service
+   */
   loadProviderSettings = async () => {
     this.setState({ isLoadingModels: true, error: '' });
 
-    if (!this.props.services?.api) {
+    if (!this.modelConfigLoader) {
       this.setState({
         isLoadingModels: false,
         error: 'API service not available'
@@ -454,148 +467,42 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     }
 
     try {
-      const resp = await this.props.services.api.get('/api/v1/ai/providers/all-models');
-      const raw = (resp && (resp as any).models)
-        || (resp && (resp as any).data && (resp as any).data.models)
-        || (Array.isArray(resp) ? resp : []);
+      // Use ModelConfigLoader with fallback logic
+      const result = await this.modelConfigLoader.loadModelsWithFallback();
 
-      const models: ModelInfo[] = Array.isArray(raw)
-        ? raw.map((m: any) => {
-            const provider = m.provider || 'ollama';
-            const providerId = PROVIDER_SETTINGS_ID_MAP[provider] || provider;
-            const serverId = m.server_id || m.serverId || 'unknown';
-            const serverName = m.server_name || m.serverName || 'Unknown Server';
-            const name = m.name || m.id || '';
-            return {
-              name,
-              provider,
-              providerId,
-              serverName,
-              serverId,
-            } as ModelInfo;
-          })
-        : [];
-
-      if (models.length > 0) {
-        const shouldBroadcastDefault = !this.state.pendingModelKey && !this.state.selectedModel;
-
-        this.setState(prevState => {
-          if (!prevState.pendingModelKey && !prevState.selectedModel && models.length > 0) {
-            return {
-              models,
-              isLoadingModels: false,
-              selectedModel: models[0],
-            };
-          }
-
-          return {
-            models,
-            isLoadingModels: false,
-            selectedModel: prevState.selectedModel,
-          };
-        }, () => {
-          if (this.state.pendingModelKey) {
-            this.resolvePendingModelSelection();
-          } else if (shouldBroadcastDefault && this.state.selectedModel) {
-            this.broadcastModelSelection(this.state.selectedModel);
-          }
-        });
-
-        return;
-      }
-
-      // Fallback: Try Ollama-only via settings + /api/v1/ollama/models
-      try {
-        const settingsResp = await this.props.services.api.get('/api/v1/settings/instances', {
-          params: {
-            definition_id: 'ollama_servers_settings',
-            scope: 'user',
-            user_id: 'current',
-          },
-        });
-
-        let settingsData: any = null;
-        if (Array.isArray(settingsResp) && settingsResp.length > 0) settingsData = settingsResp[0];
-        else if (settingsResp && typeof settingsResp === 'object') {
-          const obj = settingsResp as any;
-          if (obj.data) settingsData = Array.isArray(obj.data) ? obj.data[0] : obj.data;
-          else settingsData = settingsResp;
-        }
-
-        const fallbackModels: ModelInfo[] = [];
-        if (settingsData && settingsData.value) {
-          const parsedValue = typeof settingsData.value === 'string'
-            ? JSON.parse(settingsData.value)
-            : settingsData.value;
-          const servers = Array.isArray(parsedValue?.servers) ? parsedValue.servers : [];
-          for (const server of servers) {
-            try {
-              const params: Record<string, string> = {
-                server_url: encodeURIComponent(server.serverAddress),
-                settings_id: 'ollama_servers_settings',
-                server_id: server.id,
-              };
-              if (server.apiKey) params.api_key = server.apiKey;
-              const modelResponse = await this.props.services.api.get('/api/v1/ollama/models', { params });
-              const serverModels = Array.isArray(modelResponse) ? modelResponse : [];
-              for (const m of serverModels) {
-                fallbackModels.push({
-                  name: m.name,
-                  provider: 'ollama',
-                  providerId: 'ollama_servers_settings',
-                  serverName: server.serverName,
-                  serverId: server.id,
-                });
-              }
-            } catch (innerErr) {
-              console.error('Fallback: error loading Ollama models for server', server?.serverName, innerErr);
-            }
-          }
-        }
-
-        if (fallbackModels.length > 0) {
-          const shouldBroadcastDefault = !this.state.pendingModelKey && !this.state.selectedModel;
-
-          this.setState(prevState => {
-            if (!prevState.pendingModelKey && !prevState.selectedModel && fallbackModels.length > 0) {
-              return {
-                models: fallbackModels,
-                isLoadingModels: false,
-                selectedModel: fallbackModels[0],
-              };
-            }
-
-            return {
-              models: fallbackModels,
-              isLoadingModels: false,
-              selectedModel: prevState.selectedModel,
-            };
-          }, () => {
-            if (this.state.pendingModelKey) {
-              this.resolvePendingModelSelection();
-            } else if (shouldBroadcastDefault && this.state.selectedModel) {
-              this.broadcastModelSelection(this.state.selectedModel);
-            }
-          });
-
-          return;
-        }
-
+      if (result.error && result.models.length === 0) {
         this.setState({
-          models: fallbackModels,
+          models: [],
+          selectedModel: null,
           isLoadingModels: false,
-        }, () => {
-          if (this.state.pendingModelKey) {
-            this.resolvePendingModelSelection();
-          }
+          error: result.error,
         });
         return;
-      } catch (fallbackErr) {
-        console.error('Fallback: error loading Ollama settings/models:', fallbackErr);
-        this.setState({ models: [], selectedModel: null, isLoadingModels: false });
       }
+
+      // Select default model using FallbackModelSelector
+      const shouldBroadcastDefault = !this.state.pendingModelKey && !this.state.selectedModel;
+      const defaultModel = this.modelSelector.selectFirst(result.models);
+
+      this.setState(prevState => {
+        const selectedModel = prevState.pendingModelKey || prevState.selectedModel
+          ? prevState.selectedModel
+          : defaultModel;
+
+        return {
+          models: result.models,
+          isLoadingModels: false,
+          selectedModel,
+        };
+      }, () => {
+        if (this.state.pendingModelKey) {
+          this.resolvePendingModelSelection();
+        } else if (shouldBroadcastDefault && this.state.selectedModel) {
+          this.broadcastModelSelection(this.state.selectedModel);
+        }
+      });
     } catch (error: any) {
-      console.error('Error loading models from all providers:', error);
+      console.error('Error loading models:', error);
       this.setState({
         models: [],
         selectedModel: null,

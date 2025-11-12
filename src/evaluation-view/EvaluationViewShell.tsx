@@ -7,7 +7,6 @@ import type { ModelInfo, PersonaInfo } from '../components/chat-header/types';
 import type { EvaluationFeatureState, DetailedEvaluationResult } from './evaluationViewTypes';
 import type { Services } from '../types';
 import type { Collection } from '../braindrive-plugin/pluginTypes';
-import { PROVIDER_SETTINGS_ID_MAP } from '../constants';
 import { getEvaluationRuns, getEvaluationResults } from '../services';
 import { RunEvaluationDialog } from './components/RunEvaluationDialog';
 import { EvaluationProgressBanner } from './components/EvaluationProgressBanner';
@@ -21,6 +20,7 @@ import { StatusFilter } from './components/StatusFilter';
 import { ToastContainer, ToastManager } from './components/Toast';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
+import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
 import './EvaluationView.css';
 
 interface EvaluationViewProps {
@@ -65,11 +65,19 @@ export class EvaluationViewShell extends React.Component<
 > {
   private evaluationService: EvaluationService;
   private aiService: AIService;
+  private modelConfigLoader: ModelConfigLoader | null = null;
+  private modelSelector: FallbackModelSelector;
 
   constructor(props: EvaluationViewProps) {
     super(props);
 
     this.aiService = new AIService(props.services.api);
+
+    // Initialize model configuration services
+    if (props.services.api) {
+      this.modelConfigLoader = new ModelConfigLoader(props.services.api);
+    }
+    this.modelSelector = new FallbackModelSelector();
 
     this.state = {
       ...initialState,
@@ -189,46 +197,28 @@ export class EvaluationViewShell extends React.Component<
   };
 
   /**
-   * Load available models from /api/v1/ai/providers/all-models
+   * Load available models using ModelConfigLoader (refactored)
+   * Replaces 45+ lines of duplicate logic with domain service
    */
   loadModels = async () => {
     this.setState({ isLoadingModels: true });
 
-    if (!this.props.services?.api) {
+    if (!this.modelConfigLoader) {
       this.setState({ isLoadingModels: false });
       return;
     }
 
     try {
-      const resp = await this.props.services.api.get('/api/v1/ai/providers/all-models');
-      const raw = (resp && (resp as any).models)
-        || (resp && (resp as any).data && (resp as any).data.models)
-        || (Array.isArray(resp) ? resp : []);
-
-      const models: ModelInfo[] = Array.isArray(raw)
-        ? raw.map((m: any) => {
-            const provider = m.provider || 'ollama';
-            const providerId = PROVIDER_SETTINGS_ID_MAP[provider] || provider;
-            const serverId = m.server_id || m.serverId || 'unknown';
-            const serverName = m.server_name || m.serverName || 'Unknown Server';
-            const name = m.name || m.id || '';
-            return {
-              name,
-              provider,
-              providerId,
-              serverName,
-              serverId,
-            } as ModelInfo;
-          })
-        : [];
+      const result = await this.modelConfigLoader.loadModels();
+      const defaultModel = this.modelSelector.selectFirst(result.models);
 
       this.setState({
-        availableModels: models,
-        selectedModel: models[0] || null,
+        availableModels: result.models,
+        selectedModel: defaultModel,
         isLoadingModels: false,
       });
     } catch (error: any) {
-      console.error('Error loading models from all providers:', error);
+      console.error('Error loading models:', error);
       this.setState({
         availableModels: [],
         selectedModel: null,
