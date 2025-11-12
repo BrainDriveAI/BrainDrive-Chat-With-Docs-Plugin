@@ -35,15 +35,10 @@ import { DocumentManagerModal } from '../document-view/DocumentManagerModal';
 import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
 import { UserRepository } from '../domain/users/UserRepository';
 import { ConversationRepository } from '../domain/conversations/ConversationRepository';
+import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
-
-type ScrollToBottomOptions = {
-  behavior?: ScrollBehavior;
-  manual?: boolean;
-  force?: boolean;
-};
 
 /**
  * Unified CollectionChatViewShell component that combines AI chat, model selection, and conversation history
@@ -56,7 +51,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private currentPageContext: any = null;
   private readonly STREAMING_SETTING_KEY = SETTINGS_KEYS.STREAMING;
   private initialGreetingAdded = false;
-  private debouncedScrollToBottom: (options?: ScrollToBottomOptions) => void;
   private aiService: AIService | null = null;
   private documentService: DocumentService | null = null;
   private modelConfigLoader: ModelConfigLoader | null = null;
@@ -65,15 +59,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private conversationRepository: ConversationRepository | null = null;
   private currentStreamingAbortController: AbortController | null = null;
   private menuButtonRef: HTMLButtonElement | null = null;
-  // Keep the live edge comfortably in view instead of snapping flush bottom
-  private readonly SCROLL_ANCHOR_OFFSET = 420;
-  private readonly MIN_VISIBLE_LAST_MESSAGE_HEIGHT = 64;
-  private readonly NEAR_BOTTOM_EPSILON = 24;
-  private readonly STRICT_BOTTOM_THRESHOLD = 4;
-  private readonly USER_SCROLL_INTENT_GRACE_MS = 300;
-  private isProgrammaticScroll = false;
-  private pendingAutoScrollTimeout: ReturnType<typeof setTimeout> | null = null;
-  private lastUserScrollTs = 0;
+  private scrollManager: ChatScrollManager;
   private pendingPersonaRequestId: string | null = null;
 
   constructor(props: CollectionChatProps) {
@@ -138,25 +124,26 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       openConversationMenu: null,
       isHistoryExpanded: true, // History accordion state      
     };
-    
-    // Bind methods
-    this.debouncedScrollToBottom = (options?: ScrollToBottomOptions) => {
-      const requestedAt = Date.now();
 
-      if (this.pendingAutoScrollTimeout) {
-        clearTimeout(this.pendingAutoScrollTimeout);
-      }
+    // Initialize ChatScrollManager
+    this.scrollManager = new ChatScrollManager({
+      scrollAnchorOffset: 420,
+      minVisibleLastMessageHeight: 64,
+      nearBottomEpsilon: 24,
+      strictBottomThreshold: 4,
+      userScrollIntentGraceMs: 300,
+      scrollDebounceDelay: UI_CONFIG.SCROLL_DEBOUNCE_DELAY,
+    });
 
-      this.pendingAutoScrollTimeout = setTimeout(() => {
-        this.pendingAutoScrollTimeout = null;
-        if (this.canAutoScroll(requestedAt)) {
-          this.scrollToBottom(options);
-        } else {
-          this.updateScrollState();
-        }
-      }, UI_CONFIG.SCROLL_DEBOUNCE_DELAY);
-    };
-    
+    // Subscribe to scroll state changes
+    this.scrollManager.onStateChange((scrollState) => {
+      this.setState({
+        isNearBottom: scrollState.isNearBottom,
+        showScrollToBottom: scrollState.showScrollToBottom,
+        isAutoScrollLocked: scrollState.isAutoScrollLocked,
+      });
+    });
+
     // Initialize AI service
     this.aiService = new AIService(props.services.api);
 
@@ -184,9 +171,11 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     
     // Add click outside listener to close conversation menu
     document.addEventListener('mousedown', this.handleClickOutside);
-    
-    // Initialize scroll state
-    this.updateScrollState();
+
+    // Initialize scroll manager with container ref
+    this.scrollManager.setContainer(this.chatHistoryRef.current);
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.updateScrollState();
 
     // Set initialization timeout
     setTimeout(() => {
@@ -254,11 +243,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   }
 
   componentWillUnmount() {
+    // Clean up scroll manager
+    this.scrollManager.cleanup();
+
     // Clean up theme listener
     if (this.themeChangeListener && this.props.services?.theme) {
       this.props.services.theme.removeThemeChangeListener(this.themeChangeListener);
     }
-    
+
     // Clean up page context subscription
     if (this.pageContextUnsubscribe) {
       this.pageContextUnsubscribe();
@@ -274,8 +266,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     if (this.currentStreamingAbortController) {
       this.currentStreamingAbortController.abort();
     }
-
-    this.cancelPendingAutoScroll();
   }
 
   /**
@@ -1752,239 +1742,44 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     });
   }
 
-  /**
-   * Determine how far above the live edge we should keep the viewport.
-   * Ensures we never hide the entire final message when it's short.
-   */
-  private getEffectiveAnchorOffset = (container: HTMLDivElement): number => {
-    const lastMessage = this.state.messages[this.state.messages.length - 1];
-    if (lastMessage?.isStreaming) {
-      return 0;
-    }
-
-    const baseOffset = Math.max(this.SCROLL_ANCHOR_OFFSET, 0);
-    if (baseOffset === 0) {
-      return 0;
-    }
-
-    const lastMessageElement = container.querySelector('.message:last-of-type') as HTMLElement | null;
-    if (!lastMessageElement) {
-      return baseOffset;
-    }
-
-    const lastMessageHeight = lastMessageElement.offsetHeight;
-    const maxAllowableOffset = Math.max(lastMessageHeight - this.MIN_VISIBLE_LAST_MESSAGE_HEIGHT, 0);
-    return Math.min(baseOffset, maxAllowableOffset);
-  };
-
-  private getScrollMetrics = () => {
-    const container = this.chatHistoryRef.current;
-    if (!container) {
-      return {
-        distanceFromBottom: 0,
-        dynamicOffset: 0
-      };
-    }
-
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-    const dynamicOffset = this.getEffectiveAnchorOffset(container);
-
-    return { distanceFromBottom, dynamicOffset };
-  };
-
-
-  /**
-   * Check if user is near the bottom of the chat
-   */
+  // Scroll methods now delegated to ChatScrollManager
   isUserNearBottom = (thresholdOverride?: number) => {
-    if (!this.chatHistoryRef.current) return true;
-
-    const { distanceFromBottom, dynamicOffset } = this.getScrollMetrics();
-    const threshold = thresholdOverride ?? Math.max(dynamicOffset, this.NEAR_BOTTOM_EPSILON);
-
-    return distanceFromBottom <= threshold;
+    return this.scrollManager.isUserNearBottom(thresholdOverride);
   };
 
-  private hasRecentUserIntent = () => {
-    if (!this.lastUserScrollTs) {
-      return false;
-    }
-
-    return Date.now() - this.lastUserScrollTs <= this.USER_SCROLL_INTENT_GRACE_MS;
-  };
-
-  private canAutoScroll = (requestedAt: number = Date.now()) => {
-    if (this.state.isAutoScrollLocked) {
-      return false;
-    }
-
-    if (this.lastUserScrollTs && this.lastUserScrollTs > requestedAt) {
-      return false;
-    }
-
-    return this.isUserNearBottom();
-  };
-
-  private cancelPendingAutoScroll = () => {
-    if (this.pendingAutoScrollTimeout) {
-      clearTimeout(this.pendingAutoScrollTimeout);
-      this.pendingAutoScrollTimeout = null;
-    }
-  };
-
-  private registerUserScrollIntent = () => {
-    this.lastUserScrollTs = Date.now();
-    this.cancelPendingAutoScroll();
-
-    this.setState(prevState => {
-      if (prevState.isAutoScrollLocked && prevState.showScrollToBottom) {
-        return null;
-      }
-
-      return {
-        isAutoScrollLocked: true,
-        showScrollToBottom: true
-      };
-    });
-  };
-
-  /**
-   * Update scroll state based on current position
-   */
   updateScrollState = (options: { fromUser?: boolean; manualUnlock?: boolean } = {}) => {
-    if (!this.chatHistoryRef.current) return;
-
-    const { fromUser = false, manualUnlock = false } = options;
-    const { distanceFromBottom, dynamicOffset } = this.getScrollMetrics();
-    const nearBottomThreshold = Math.max(dynamicOffset, this.NEAR_BOTTOM_EPSILON);
-    const isNearBottom = distanceFromBottom <= nearBottomThreshold;
-    const isAtStrictBottom = distanceFromBottom <= this.STRICT_BOTTOM_THRESHOLD;
-
-    let shouldClearUserIntent = false;
-    let shouldSuppressManualIntent = false;
-
-    this.setState(prevState => {
-      let isAutoScrollLocked = prevState.isAutoScrollLocked;
-
-      if (manualUnlock) {
-        if (isAutoScrollLocked) {
-          shouldClearUserIntent = true;
-        }
-        isAutoScrollLocked = false;
-      } else if (fromUser) {
-        if (isAtStrictBottom) {
-          if (isAutoScrollLocked) {
-            shouldClearUserIntent = true;
-          }
-          isAutoScrollLocked = false;
-          shouldSuppressManualIntent = true;
-        } else {
-          isAutoScrollLocked = true;
-        }
-      } else if (isAtStrictBottom && prevState.isAutoScrollLocked && !this.hasRecentUserIntent()) {
-        isAutoScrollLocked = false;
-        shouldClearUserIntent = true;
-      }
-
-      const nextShowScrollToBottom = isAutoScrollLocked ? true : !isAtStrictBottom;
-
-      if (
-        prevState.isNearBottom === isNearBottom &&
-        prevState.showScrollToBottom === nextShowScrollToBottom &&
-        prevState.isAutoScrollLocked === isAutoScrollLocked
-      ) {
-        return null;
-      }
-
-      return {
-        isNearBottom,
-        showScrollToBottom: nextShowScrollToBottom,
-        isAutoScrollLocked
-      };
-    }, () => {
-      if (shouldClearUserIntent && !this.state.isAutoScrollLocked) {
-        this.lastUserScrollTs = 0;
-      }
-
-      if (shouldSuppressManualIntent) {
-        this.lastUserScrollTs = 0;
-      }
-    });
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.updateScrollState(options);
   };
 
-  /**
-   * Handle scroll events to track user scroll position
-   */
   handleScroll = () => {
-    if (this.isProgrammaticScroll) {
-      this.updateScrollState();
-      return;
-    }
-
-    this.registerUserScrollIntent();
-    this.updateScrollState({ fromUser: true });
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.handleScroll();
   };
 
-  handleUserScrollIntent = (_source: 'pointer' | 'wheel' | 'touch' | 'key') => {
-    this.registerUserScrollIntent();
+  handleUserScrollIntent = (source: 'pointer' | 'wheel' | 'touch' | 'key') => {
+    this.scrollManager.handleUserScrollIntent(source);
   };
 
   handleScrollToBottomClick = () => {
-    this.scrollToBottom({ behavior: 'smooth', manual: true });
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.handleScrollToBottomClick();
   };
 
   private followStreamIfAllowed = () => {
-    if (this.canAutoScroll()) {
-      this.scrollToBottom();
-    } else {
-      this.updateScrollState();
-    }
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.followStreamIfAllowed();
   };
 
-  /**
-   * Scroll the chat history to the bottom while respecting the anchor offset
-   */
-  scrollToBottom = (options: ScrollToBottomOptions = {}) => {
-    if (!this.chatHistoryRef.current) return;
+  scrollToBottom = (options?: { behavior?: ScrollBehavior; manual?: boolean; force?: boolean }) => {
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.scrollToBottom(options);
+  };
 
-    this.cancelPendingAutoScroll();
-    const { behavior = 'auto', manual = false, force = false } = options;
-    const container = this.chatHistoryRef.current;
-
-    const useAnchorOffset = !(manual || force);
-    const dynamicOffset = useAnchorOffset ? this.getEffectiveAnchorOffset(container) : 0;
-    const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0);
-    const targetTop = Math.max(maxScrollTop - dynamicOffset, 0);
-
-    this.isProgrammaticScroll = true;
-
-    if (typeof container.scrollTo === 'function') {
-      try {
-        container.scrollTo({ top: targetTop, behavior });
-      } catch (_err) {
-        container.scrollTop = targetTop;
-      }
-    } else {
-      container.scrollTop = targetTop;
-    }
-
-    const finalize = () => {
-      this.isProgrammaticScroll = false;
-      if (manual || force) {
-        this.lastUserScrollTs = 0;
-        this.updateScrollState({ manualUnlock: true });
-      } else {
-        this.updateScrollState();
-      }
-    };
-
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(finalize);
-    } else {
-      setTimeout(finalize, 0);
-    }
-  }
+  private debouncedScrollToBottom = (options?: { behavior?: ScrollBehavior; manual?: boolean; force?: boolean }) => {
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.debouncedScrollToBottom(options);
+  };
 
   /**
    * Focus the input field
