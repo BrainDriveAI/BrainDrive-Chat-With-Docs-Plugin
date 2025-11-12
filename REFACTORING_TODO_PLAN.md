@@ -162,39 +162,83 @@ Extract chat message handling logic.
 
 Move orchestration logic from components to services.
 
-### Implement CollectionChatService
-- [ ] Uncomment `src/collection-chat-view/CollectionChatService.ts`
-- [ ] Implement `sendMessage()` method
-  - Orchestrate: validation → RAG retrieval → prompt building → AI call → persist
-  - Use domain objects from Phase 2-4
-  - Delegate to repositories for I/O
+**Analysis completed**: CollectionChatViewShell.tsx has 2514 lines with 900-1000 lines extractable
 
-- [ ] Implement `sendMessageWithRAG()` method
-  - Add RAG retrieval step before AI call
+### Priority 1: Conversation Management (200+ lines)
+- [ ] Create `src/domain/conversations/ConversationRepository.ts`
+  - Extract `fetchConversations()` (117 lines)
+  - Extract `refreshConversationsList()` (81 lines)
+  - Extract `sortConversationsByRecency()`, `getConversationSortTimestamp()`
+  - Eliminate duplicate logic between fetch/refresh
 
-- [ ] Implement `loadConversation()` method
-  - Fetch history from ChatSessionRepository
+- [ ] Create `src/domain/conversations/ConversationLoader.ts`
+  - Extract `loadConversationWithPersona()` (138 lines - very complex)
+  - Extract `loadConversationHistory()` (63 lines)
+  - Extract `updateConversationPersona()` (12 lines)
 
-- [ ] Add `StatePublisher` for component state updates
-  - Replace direct `setState` callbacks
+- [ ] Tests
+  - Create `src/domain/__tests__/ConversationRepository.test.ts`
+  - Create `src/domain/__tests__/ConversationLoader.test.ts`
 
-### Tests
-- [ ] Create `src/application/__tests__/CollectionChatService.test.ts`
-  - Mock repositories and domain objects
-  - Test orchestration logic
-  - Verify state updates published correctly
+### Priority 2: Streaming Chat Handler (300+ lines)
+- [ ] Create `src/domain/chat/StreamingChatHandler.ts`
+  - Extract core logic from `sendPromptToAI()` (202 lines - very complex)
+  - Extract `stopGeneration()` (50 lines)
+  - Extract `continueGeneration()` (22 lines)
+  - Extract `regenerateResponse()` (18 lines)
+  - Manages abort controllers, streaming state, message placeholders
 
-### Integration
-- [ ] Update `CollectionChatViewShell.handleSendMessage()` to delegate to service
-  - Keep old implementation commented as reference
-  - Verify chat flow still works
+- [ ] Tests
+  - Create `src/domain/__tests__/StreamingChatHandler.test.ts`
+  - Mock abort controllers and streaming callbacks
 
-- [ ] Update `CollectionChatViewShell.constructor` to inject service
+### Priority 3: Persona Management (130+ lines)
+- [ ] Create `src/domain/personas/PersonaResolver.ts`
+  - Extract `resolvePendingPersonaSelection()` (72 lines - complex async)
+  - Extract `fetchPersonaById()` (20 lines)
+  - Extract `loadPersonas()` (38 lines)
+
+- [ ] Tests
+  - Create `src/domain/__tests__/PersonaResolver.test.ts`
+
+### Priority 4: Document Upload Handler (90+ lines)
+- [ ] Create `src/domain/documents/DocumentUploadHandler.ts`
+  - Extract `handleFileUploadClick()` (59 lines)
+  - Extract `handleDocumentsProcessed()` (29 lines)
+  - Extract `handleDocumentError()` (3 lines)
+
+- [ ] Tests
+  - Create `src/domain/__tests__/DocumentUploadHandler.test.ts`
+
+### Priority 5: Page Settings Service (60+ lines)
+- [ ] Create `src/domain/settings/PageSettingsService.ts`
+  - Extract `getSettingKey()`, `getSavedStreamingMode()`, `saveStreamingMode()`
+  - Handles page-specific settings with global fallback
+
+- [ ] Tests
+  - Create `src/domain/__tests__/PageSettingsService.test.ts`
+
+### Priority 6: Scroll State Manager (265 lines) - Service Class
+- [ ] Create `src/domain/ui/ScrollStateManager.ts`
+  - Extract all 14 scroll-related methods to service class
+  - User intent tracking, auto-scroll with grace period
+  - Anchor offset calculation, scroll state machine
+  - **Note**: Keep as service class (not hook) - plugin requires class components
+
+- [ ] Tests
+  - Create `src/domain/__tests__/ScrollStateManager.test.ts`
+  - Mock DOM elements and scroll events
+
+### Integration with CollectionChatViewShell
+- [ ] Update component to use new services
+- [ ] Reduce from 2514 lines to ~1500-1600 lines (or ~1300 with scroll extraction)
+- [ ] Verify all functionality still works
+- [ ] Keep as class component (host system requirement)
 
 ### Commit
-- [ ] Commit: "feat: implement CollectionChatService with orchestration logic"
+- [ ] Commit: "refactor: extract conversation, streaming, and persona domain services"
 
-**Target**: Move 250+ lines from component to service
+**Target**: Remove 900-1000 lines from CollectionChatViewShell (up to 1200 with scroll manager)
 
 ---
 
