@@ -36,6 +36,7 @@ import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
 import { UserRepository } from '../domain/users/UserRepository';
 import { ConversationRepository } from '../domain/conversations/ConversationRepository';
 import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
+import { ConversationLoader } from '../domain/conversations/ConversationLoader';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -57,6 +58,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private modelSelector: FallbackModelSelector;
   private userRepository: UserRepository | null = null;
   private conversationRepository: ConversationRepository | null = null;
+  private conversationLoader: ConversationLoader | null = null;
   private currentStreamingAbortController: AbortController | null = null;
   private menuButtonRef: HTMLButtonElement | null = null;
   private scrollManager: ChatScrollManager;
@@ -149,6 +151,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
 
     // Initialize Document service with authenticated API service
     this.documentService = new DocumentService(props.services.api);
+
+    // Initialize ConversationLoader
+    if (props.services.api && this.aiService) {
+      this.conversationLoader = new ConversationLoader({
+        api: props.services.api,
+        aiService: this.aiService,
+      });
+    }
 
     // Initialize model configuration services
     if (props.services.api) {
@@ -1096,16 +1106,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   };
 
   /**
-   * Load conversation history from the API
+   * Load conversation history from the API (delegates to ConversationLoader)
    */
   loadConversationHistory = async (conversationId: string) => {
-    console.log(`📚 Loading conversation history: ${conversationId}`);
-    
-    if (!this.props.services?.api) {
+    if (!this.conversationLoader) {
       this.setState({ error: 'API service not available', isInitializing: false });
       return;
     }
-    
+
     try {
       // Clear current conversation without showing initial greeting
       console.log(`🧹 Clearing messages for conversation load: ${conversationId}`);
@@ -1115,43 +1123,26 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
         isLoadingHistory: true,
         error: ''
       });
-      
-      // Fetch conversation with messages
-      const response: any = await this.props.services.api.get(
-        `/api/v1/conversations/${conversationId}/with-messages`
-      );
-      
+
+      // Load conversation history using ConversationLoader
+      const result = await this.conversationLoader.loadConversationHistory(conversationId);
+
       // Mark that we've loaded a conversation, so don't show initial greeting
       this.initialGreetingAdded = true;
-      
-      // Process messages
-      const messages: ChatMessage[] = [];
-      
-      if (response && response.messages && Array.isArray(response.messages)) {
-        // Convert API message format to ChatMessage format
-        messages.push(...response.messages.map((msg: any) => ({
-          id: msg.id || generateId('history'),
-          sender: msg.sender === 'llm' ? 'ai' : 'user' as 'ai' | 'user',
-          content: this.cleanMessageContent(msg.message),
-          timestamp: msg.created_at
-        })));
-      }
-      
+
       // Update state
       this.setState({
-        messages,
-        conversation_id: conversationId,
+        messages: result.messages,
+        conversation_id: result.conversationId,
         isLoadingHistory: false,
         isInitializing: false
       });
-      
-      console.log(`✅ Conversation history loaded: ${conversationId}, ${messages.length} messages`);
-      
+
       // Scroll to bottom after loading history so the latest reply is visible
       setTimeout(() => {
         this.scrollToBottom({ force: true });
       }, 100);
-      
+
     } catch (error) {
       // Error loading conversation history
       this.setState({
@@ -1163,16 +1154,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   }
 
   /**
-   * Load conversation history with persona and model auto-selection
+   * Load conversation history with persona and model auto-selection (delegates to ConversationLoader)
    */
   loadConversationWithPersona = async (conversationId: string) => {
-    console.log(`🔄 Loading conversation with persona: ${conversationId}`);
-    
-    if (!this.props.services?.api || !this.aiService) {
+    if (!this.conversationLoader) {
       this.setState({ error: 'API service not available', isInitializing: false });
       return;
     }
-    
+
     try {
       // Clear current conversation without showing initial greeting
       this.setState({
@@ -1181,122 +1170,59 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
         isLoadingHistory: true,
         error: ''
       });
-      
-      // Get the selected conversation from state to access model/server info
-      const selectedConversation = this.state.selectedConversation;
-      
-      // Try to fetch conversation with persona details first
-      let conversationWithPersona: ConversationWithPersona | null = null;
-      try {
-         // @ts-ignore
-        conversationWithPersona = await this.aiService.loadConversationWithPersona(conversationId);
-      } catch (error) {
-        // If the new endpoint doesn't exist yet, fall back to regular conversation loading
-        console.warn('Persona-aware conversation loading not available, falling back to regular loading');
-        // Use the selected conversation data we already have
-        conversationWithPersona = selectedConversation;
-      }
-      
-      const showPersonaSelection = this.state.showPersonaSelection;
-      const personaFromConversation = showPersonaSelection && conversationWithPersona?.persona
-        ? { ...conversationWithPersona.persona, id: `${conversationWithPersona.persona.id}` }
-        : null;
-      const personaIdFromConversation = showPersonaSelection
-        ? (personaFromConversation?.id
-          || (conversationWithPersona?.persona_id ? `${conversationWithPersona.persona_id}` : null))
-        : null;
-      const pendingPersonaId = personaIdFromConversation && personaIdFromConversation.trim() !== ''
-        ? personaIdFromConversation
-        : null;
 
-      const modelName = conversationWithPersona?.model?.trim();
-      const serverName = conversationWithPersona?.server?.trim();
-      const hasModelMetadata = Boolean(modelName && serverName);
+      // Load conversation using ConversationLoader
+      const result = await this.conversationLoader.loadConversationWithPersona({
+        conversationId,
+        showPersonaSelection: this.state.showPersonaSelection,
+        models: this.state.models,
+        personas: this.state.personas,
+        selectedConversation: this.state.selectedConversation,
+      });
 
-      const pendingModelKey = hasModelMetadata
-        ? this.getModelKey(modelName, serverName)
-        : null;
-      const matchingModel = pendingModelKey
-        ? this.state.models.find(model => this.getModelKeyFromInfo(model) === pendingModelKey)
-        : null;
-      const pendingModelSnapshot = pendingModelKey && !matchingModel && hasModelMetadata
-        ? {
-            name: modelName!,
-            provider: 'ollama',
-            providerId: 'ollama_servers_settings',
-            serverName: serverName!,
-            serverId: 'unknown',
-            isTemporary: true
-          } as ModelInfo
-        : null;
+      // Mark that we've loaded a conversation, so don't show initial greeting
+      this.initialGreetingAdded = true;
 
-      const previousSelectedModelKey = this.getModelKeyFromInfo(this.state.selectedModel);
+      // Track previous model key for broadcasting
+      const previousSelectedModelKey = ModelKeyHelper.getModelKeyFromInfo(this.state.selectedModel);
 
-      this.setState(prevState => {
-        const nextState: Partial<CollectionChatState> = {
-          pendingModelKey,
-          pendingModelSnapshot,
-          pendingPersonaId,
-        };
-
-        if (matchingModel) {
-          nextState.selectedModel = matchingModel;
-        } else if (pendingModelSnapshot) {
-          nextState.selectedModel = pendingModelSnapshot;
-        } else if (!pendingModelKey) {
-          nextState.pendingModelKey = null;
-          nextState.pendingModelSnapshot = null;
-        }
-
-        if (showPersonaSelection) {
-          if (personaFromConversation) {
-            const existingPersona = prevState.personas.find(p => `${p.id}` === personaFromConversation.id);
-            if (existingPersona) {
-              nextState.selectedPersona = existingPersona;
-            } else {
-              nextState.personas = [...prevState.personas, personaFromConversation];
-              nextState.selectedPersona = personaFromConversation;
-            }
-          } else if (pendingPersonaId) {
-            nextState.pendingPersonaId = pendingPersonaId;
-            const existingPersona = prevState.personas.find(p => `${p.id}` === pendingPersonaId);
-            nextState.selectedPersona = existingPersona || null;
-          } else {
-            nextState.selectedPersona = null;
-            nextState.pendingPersonaId = null;
-          }
-        } else {
-          nextState.selectedPersona = null;
-          nextState.pendingPersonaId = null;
-        }
-
-        return nextState as Pick<CollectionChatState, keyof CollectionChatState>;
+      // Update state with loaded data
+      this.setState({
+        messages: result.messages,
+        conversation_id: result.conversationId,
+        pendingModelKey: result.pendingModelKey,
+        pendingModelSnapshot: result.pendingModelSnapshot,
+        selectedModel: result.selectedModel,
+        pendingPersonaId: result.pendingPersonaId,
+        selectedPersona: result.selectedPersona,
+        personas: result.personas,
+        isLoadingHistory: false,
+        isInitializing: false,
       }, () => {
-        const newSelectedModelKey = this.getModelKeyFromInfo(this.state.selectedModel);
+        // Broadcast model selection if changed
+        const newSelectedModelKey = ModelKeyHelper.getModelKeyFromInfo(this.state.selectedModel);
         if (
-          (matchingModel || pendingModelSnapshot) &&
+          result.selectedModel &&
           newSelectedModelKey &&
           newSelectedModelKey !== previousSelectedModelKey
         ) {
-          const currentModel = this.state.selectedModel;
-          if (currentModel) {
-            this.broadcastModelSelection(currentModel);
-          }
+          this.broadcastModelSelection(result.selectedModel);
         }
 
-        if (pendingModelKey) {
+        // Resolve pending model/persona
+        if (result.pendingModelKey) {
           this.resolvePendingModelSelection();
         }
         if (this.state.pendingPersonaId) {
           this.resolvePendingPersonaSelection();
         }
       });
-      
-      // Now load the conversation messages using the regular method
-      await this.loadConversationHistory(conversationId);
-      
-      console.log(`✅ Conversation loaded successfully: ${conversationId}`);
-      
+
+      // Scroll to bottom after loading history
+      setTimeout(() => {
+        this.scrollToBottom({ force: true });
+      }, 100);
+
     } catch (error) {
       console.error('Error loading conversation with persona:', error);
       // Fall back to regular conversation loading
@@ -1307,17 +1233,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Update conversation's persona
    */
+  /**
+   * Update conversation persona (delegates to ConversationLoader)
+   */
   updateConversationPersona = async (conversationId: string, personaId: string | null) => {
-    if (!this.aiService) {
-      throw new Error('AI service not available');
+    if (!this.conversationLoader) {
+      throw new Error('Conversation loader not available');
     }
-
-    try {
-      await this.aiService.updateConversationPersona(conversationId, personaId);
-    } catch (error) {
-      console.error('Error updating conversation persona:', error);
-      throw error;
-    }
+    return this.conversationLoader.updateConversationPersona(conversationId, personaId);
   };
 
   /**
@@ -1706,22 +1629,12 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Clean up message content by removing excessive newlines and search/document context
    */
+  /**
+   * Clean message content for display (delegates to ConversationLoader)
+   */
   cleanMessageContent = (content: string): string => {
-    if (!content) return content;
-    
-    let cleanedContent = content
-      .replace(/\r\n/g, '\n')      // Normalize line endings
-      .replace(/\n{3,}/g, '\n\n')  // Replace 3+ newlines with 2 (paragraph break)
-      .trim();                     // Remove leading/trailing whitespace
-    
-    // Remove web search context that might have been stored in old messages
-    cleanedContent = cleanedContent.replace(/\n\n\[WEB SEARCH CONTEXT[^]*$/, '');
-    
-    // Remove document context that might have been stored in old messages
-    cleanedContent = cleanedContent.replace(/^Document Context:[^]*?\n\nUser Question: /, '');
-    cleanedContent = cleanedContent.replace(/^[^]*?\n\nUser Question: /, '');
-    
-    return cleanedContent.trim();
+    if (!this.conversationLoader) return content;
+    return this.conversationLoader.cleanMessageContent(content);
   };
 
   /**
