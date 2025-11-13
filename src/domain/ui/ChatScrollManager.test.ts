@@ -286,7 +286,7 @@ describe('ChatScrollManager', () => {
         setTimeout(() => {
           expect(manager.getState().isAutoScrollLocked).toBe(false);
           resolve();
-        }, 10);
+        }, 50); // Increased timeout to account for requestAnimationFrame
       });
     });
   });

@@ -38,6 +38,7 @@ import { ConversationRepository } from '../domain/conversations/ConversationRepo
 import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
 import { ConversationLoader } from '../domain/conversations/ConversationLoader';
 import { PersonaResolver } from '../domain/personas/PersonaResolver';
+import { PageSettingsService } from '../domain/settings/PageSettingsService';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -49,8 +50,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private chatHistoryRef = React.createRef<HTMLDivElement>();
   private inputRef = React.createRef<HTMLTextAreaElement>();
   private themeChangeListener: ((theme: string) => void) | null = null;
-  private pageContextUnsubscribe: (() => void) | null = null;
-  private currentPageContext: any = null;
   private readonly STREAMING_SETTING_KEY = SETTINGS_KEYS.STREAMING;
   private initialGreetingAdded = false;
   private aiService: AIService | null = null;
@@ -61,6 +60,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private conversationRepository: ConversationRepository | null = null;
   private conversationLoader: ConversationLoader | null = null;
   private personaResolver: PersonaResolver | null = null;
+  private pageSettingsService: PageSettingsService | null = null;
   private currentStreamingAbortController: AbortController | null = null;
   private menuButtonRef: HTMLButtonElement | null = null;
   private scrollManager: ChatScrollManager;
@@ -168,6 +168,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       });
     }
 
+    // Initialize PageSettingsService
+    if (props.services.settings && props.services.pageContext) {
+      this.pageSettingsService = new PageSettingsService({
+        settings: props.services.settings,
+        pageContext: props.services.pageContext,
+      });
+    }
+
     // Initialize model configuration services
     if (props.services.api) {
       this.modelConfigLoader = new ModelConfigLoader(props.services.api);
@@ -269,11 +277,11 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       this.props.services.theme.removeThemeChangeListener(this.themeChangeListener);
     }
 
-    // Clean up page context subscription
-    if (this.pageContextUnsubscribe) {
-      this.pageContextUnsubscribe();
+    // Clean up page settings service
+    if (this.pageSettingsService) {
+      this.pageSettingsService.cleanup();
     }
-    
+
     // Clean up global key event listener
     document.removeEventListener('keydown', this.handleGlobalKeyPress);
     
@@ -306,11 +314,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Get page-specific setting key with fallback to global
    */
   private getSettingKey(baseSetting: string): string {
-    const pageContext = this.getCurrentPageContext();
-    if (pageContext?.pageId) {
-      return `page_${pageContext.pageId}_${baseSetting}`;
-    }
-    return baseSetting; // Fallback to global
+    return this.pageSettingsService?.getSettingKey(baseSetting) || baseSetting;
   }
 
   /**
@@ -394,23 +398,11 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Initialize the page context service to listen for page changes
    */
   initializePageContextService = () => {
-    if (this.props.services?.pageContext) {
-      try {
-        // Get initial page context
-        this.currentPageContext = this.props.services.pageContext.getCurrentPageContext();
-        
-        // Subscribe to page context changes
-        this.pageContextUnsubscribe = this.props.services.pageContext.onPageContextChange(
-          (context) => {
-            this.currentPageContext = context;
-            // Reload conversations when page changes to show page-specific conversations
-            this.fetchConversations();
-          }
-        );
-      } catch (error) {
-        // Error initializing page context service
-        console.warn('Failed to initialize page context service:', error);
-      }
+    if (this.pageSettingsService) {
+      this.pageSettingsService.initialize(() => {
+        // Reload conversations when page changes to show page-specific conversations
+        this.fetchConversations();
+      });
     }
   }
 
@@ -418,10 +410,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Helper method to get current page context
    */
   private getCurrentPageContext() {
-    if (this.props.services?.pageContext) {
-      return this.props.services.pageContext.getCurrentPageContext();
-    }
-    return this.currentPageContext;
+    return this.pageSettingsService?.getCurrentPageContext() || null;
   }
 
   /**
