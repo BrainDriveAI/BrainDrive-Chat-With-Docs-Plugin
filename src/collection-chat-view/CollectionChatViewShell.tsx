@@ -39,6 +39,7 @@ import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
 import { ConversationLoader } from '../domain/conversations/ConversationLoader';
 import { PersonaResolver } from '../domain/personas/PersonaResolver';
 import { PageSettingsService } from '../domain/settings/PageSettingsService';
+import { ModelKeyHelper } from '../utils/ModelKeyHelper';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here

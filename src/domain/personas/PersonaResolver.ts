@@ -1,12 +1,6 @@
-/**
- * Persona information
- */
-export interface PersonaInfo {
-  id: string;
-  name: string;
-  description?: string;
-  [key: string]: any;
-}
+import type { PersonaInfo } from '../../types';
+
+export type { PersonaInfo };
 
 /**
  * Result of resolving a pending persona

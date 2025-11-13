@@ -1,5 +1,8 @@
 import { generateId } from '../../utils';
 import { ModelKeyHelper } from '../../utils/ModelKeyHelper';
+import type { PersonaInfo } from '../../types';
+
+export type { PersonaInfo };
 
 /**
  * Message from API format
@@ -32,15 +35,6 @@ export interface ModelInfo {
   serverName: string;
   serverId: string;
   isTemporary?: boolean;
-}
-
-/**
- * Persona information
- */
-export interface PersonaInfo {
-  id: string;
-  name: string;
-  description?: string;
 }
 
 /**
