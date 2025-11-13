@@ -32,15 +32,19 @@ import {
 // Import services
 import { AIService, DocumentService } from '../services';
 import { DocumentManagerModal } from '../document-view/DocumentManagerModal';
+import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
+import { UserRepository } from '../domain/users/UserRepository';
+import { ConversationRepository } from '../domain/conversations/ConversationRepository';
+import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
+import { ConversationLoader } from '../domain/conversations/ConversationLoader';
+import { ConversationManager } from '../domain/conversations/ConversationManager';
+import { PersonaResolver } from '../domain/personas/PersonaResolver';
+import { PageSettingsService } from '../domain/settings/PageSettingsService';
+import { GreetingService } from '../domain/chat/GreetingService';
+import { ModelKeyHelper } from '../utils/ModelKeyHelper';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
-
-type ScrollToBottomOptions = {
-  behavior?: ScrollBehavior;
-  manual?: boolean;
-  force?: boolean;
-};
 
 /**
  * Unified CollectionChatViewShell component that combines AI chat, model selection, and conversation history
@@ -49,25 +53,20 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private chatHistoryRef = React.createRef<HTMLDivElement>();
   private inputRef = React.createRef<HTMLTextAreaElement>();
   private themeChangeListener: ((theme: string) => void) | null = null;
-  private pageContextUnsubscribe: (() => void) | null = null;
-  private currentPageContext: any = null;
   private readonly STREAMING_SETTING_KEY = SETTINGS_KEYS.STREAMING;
   private initialGreetingAdded = false;
-  private debouncedScrollToBottom: (options?: ScrollToBottomOptions) => void;
   private aiService: AIService | null = null;
   private documentService: DocumentService | null = null;
+  private modelConfigLoader: ModelConfigLoader | null = null;
+  private modelSelector: FallbackModelSelector;
+  private userRepository: UserRepository | null = null;
+  private conversationRepository: ConversationRepository | null = null;
+  private conversationLoader: ConversationLoader | null = null;
+  private conversationManager: ConversationManager | null = null;
+  private personaResolver: PersonaResolver | null = null;
+  private pageSettingsService: PageSettingsService | null = null;
   private currentStreamingAbortController: AbortController | null = null;
-  private menuButtonRef: HTMLButtonElement | null = null;
-  // Keep the live edge comfortably in view instead of snapping flush bottom
-  private readonly SCROLL_ANCHOR_OFFSET = 420;
-  private readonly MIN_VISIBLE_LAST_MESSAGE_HEIGHT = 64;
-  private readonly NEAR_BOTTOM_EPSILON = 24;
-  private readonly STRICT_BOTTOM_THRESHOLD = 4;
-  private readonly USER_SCROLL_INTENT_GRACE_MS = 300;
-  private isProgrammaticScroll = false;
-  private pendingAutoScrollTimeout: ReturnType<typeof setTimeout> | null = null;
-  private lastUserScrollTs = 0;
-  private pendingPersonaRequestId: string | null = null;
+  private scrollManager: ChatScrollManager;
 
   constructor(props: CollectionChatProps) {
     super(props);
@@ -131,30 +130,69 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       openConversationMenu: null,
       isHistoryExpanded: true, // History accordion state      
     };
-    
-    // Bind methods
-    this.debouncedScrollToBottom = (options?: ScrollToBottomOptions) => {
-      const requestedAt = Date.now();
 
-      if (this.pendingAutoScrollTimeout) {
-        clearTimeout(this.pendingAutoScrollTimeout);
-      }
+    // Initialize ChatScrollManager
+    this.scrollManager = new ChatScrollManager({
+      scrollAnchorOffset: 420,
+      minVisibleLastMessageHeight: 64,
+      nearBottomEpsilon: 24,
+      strictBottomThreshold: 4,
+      userScrollIntentGraceMs: 300,
+      scrollDebounceDelay: UI_CONFIG.SCROLL_DEBOUNCE_DELAY,
+    });
 
-      this.pendingAutoScrollTimeout = setTimeout(() => {
-        this.pendingAutoScrollTimeout = null;
-        if (this.canAutoScroll(requestedAt)) {
-          this.scrollToBottom(options);
-        } else {
-          this.updateScrollState();
-        }
-      }, UI_CONFIG.SCROLL_DEBOUNCE_DELAY);
-    };
-    
+    // Subscribe to scroll state changes
+    this.scrollManager.onStateChange((scrollState) => {
+      this.setState({
+        isNearBottom: scrollState.isNearBottom,
+        showScrollToBottom: scrollState.showScrollToBottom,
+        isAutoScrollLocked: scrollState.isAutoScrollLocked,
+      });
+    });
+
     // Initialize AI service
     this.aiService = new AIService(props.services.api);
-    
+
     // Initialize Document service with authenticated API service
     this.documentService = new DocumentService(props.services.api);
+
+    // Initialize ConversationLoader
+    if (props.services.api && this.aiService) {
+      this.conversationLoader = new ConversationLoader({
+        api: props.services.api,
+        aiService: this.aiService,
+      });
+    }
+
+    // Initialize PersonaResolver
+    if (props.services.api) {
+      this.personaResolver = new PersonaResolver({
+        api: props.services.api,
+      });
+    }
+
+    // Initialize ConversationManager
+    if (props.services.api) {
+      this.conversationManager = new ConversationManager({
+        api: props.services.api,
+        addMessageToChat: this.addMessageToChat,
+        loadConversationWithPersona: this.loadConversationWithPersona,
+      });
+    }
+
+    // Initialize PageSettingsService
+    if (props.services.settings && props.services.pageContext) {
+      this.pageSettingsService = new PageSettingsService({
+        settings: props.services.settings,
+        pageContext: props.services.pageContext,
+      });
+    }
+
+    // Initialize model configuration services
+    if (props.services.api) {
+      this.modelConfigLoader = new ModelConfigLoader(props.services.api);
+    }
+    this.modelSelector = new FallbackModelSelector();
   }
 
   componentDidMount() {
@@ -171,20 +209,23 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     
     // Add click outside listener to close conversation menu
     document.addEventListener('mousedown', this.handleClickOutside);
-    
-    // Initialize scroll state
-    this.updateScrollState();
+
+    // Initialize scroll manager with container ref
+    this.scrollManager.setContainer(this.chatHistoryRef.current);
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.updateScrollState();
 
     // Set initialization timeout
     setTimeout(() => {
       if (!this.state.conversation_id) {
-        // Only use persona greeting if persona selection is enabled and a persona is selected
-        // Ensure persona is null when personas are disabled
-        const effectivePersona = this.state.showPersonaSelection ? this.state.selectedPersona : null;
-        const personaGreeting = this.state.showPersonaSelection && effectivePersona?.sample_greeting;
-        const greetingContent = personaGreeting || this.props.initialGreeting;
-        
-        console.log(`🎭 Greeting logic: showPersonaSelection=${this.state.showPersonaSelection}, effectivePersona=${effectivePersona?.name || 'none'}, using=${personaGreeting ? 'persona' : 'default'} greeting`);
+        // Get greeting using GreetingService
+        const greetingContent = GreetingService.getGreeting({
+          showPersonaSelection: this.state.showPersonaSelection,
+          selectedPersona: this.state.selectedPersona,
+          defaultGreeting: this.props.initialGreeting
+        });
+
+        console.log(`🎭 Greeting logic: showPersonaSelection=${this.state.showPersonaSelection}, selectedPersona=${this.state.selectedPersona?.name || 'none'}, using=${GreetingService.shouldUsePersonaGreeting({ showPersonaSelection: this.state.showPersonaSelection, selectedPersona: this.state.selectedPersona }) ? 'persona' : 'default'} greeting`);
         
         if (greetingContent && !this.initialGreetingAdded) {
           this.initialGreetingAdded = true;
@@ -241,16 +282,19 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   }
 
   componentWillUnmount() {
+    // Clean up scroll manager
+    this.scrollManager.cleanup();
+
     // Clean up theme listener
     if (this.themeChangeListener && this.props.services?.theme) {
       this.props.services.theme.removeThemeChangeListener(this.themeChangeListener);
     }
-    
-    // Clean up page context subscription
-    if (this.pageContextUnsubscribe) {
-      this.pageContextUnsubscribe();
+
+    // Clean up page settings service
+    if (this.pageSettingsService) {
+      this.pageSettingsService.cleanup();
     }
-    
+
     // Clean up global key event listener
     document.removeEventListener('keydown', this.handleGlobalKeyPress);
     
@@ -261,14 +305,18 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     if (this.currentStreamingAbortController) {
       this.currentStreamingAbortController.abort();
     }
-
-    this.cancelPendingAutoScroll();
   }
 
   /**
    * Load initial data (models and conversations)
    */
   loadInitialData = async () => {
+    // Initialize repositories
+    if (this.props.services?.api) {
+      this.userRepository = new UserRepository({ api: this.props.services.api });
+      this.conversationRepository = new ConversationRepository({ api: this.props.services.api });
+    }
+
     await Promise.all([
       this.loadProviderSettings(),
       this.fetchConversations()
@@ -279,11 +327,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Get page-specific setting key with fallback to global
    */
   private getSettingKey(baseSetting: string): string {
-    const pageContext = this.getCurrentPageContext();
-    if (pageContext?.pageId) {
-      return `page_${pageContext.pageId}_${baseSetting}`;
-    }
-    return baseSetting; // Fallback to global
+    return this.pageSettingsService?.getSettingKey(baseSetting) || baseSetting;
   }
 
   /**
@@ -367,23 +411,11 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Initialize the page context service to listen for page changes
    */
   initializePageContextService = () => {
-    if (this.props.services?.pageContext) {
-      try {
-        // Get initial page context
-        this.currentPageContext = this.props.services.pageContext.getCurrentPageContext();
-        
-        // Subscribe to page context changes
-        this.pageContextUnsubscribe = this.props.services.pageContext.onPageContextChange(
-          (context) => {
-            this.currentPageContext = context;
-            // Reload conversations when page changes to show page-specific conversations
-            this.fetchConversations();
-          }
-        );
-      } catch (error) {
-        // Error initializing page context service
-        console.warn('Failed to initialize page context service:', error);
-      }
+    if (this.pageSettingsService) {
+      this.pageSettingsService.initialize(() => {
+        // Reload conversations when page changes to show page-specific conversations
+        this.fetchConversations();
+      });
     }
   }
 
@@ -391,43 +423,37 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Helper method to get current page context
    */
   private getCurrentPageContext() {
-    if (this.props.services?.pageContext) {
-      return this.props.services.pageContext.getCurrentPageContext();
-    }
-    return this.currentPageContext;
+    return this.pageSettingsService?.getCurrentPageContext() || null;
   }
 
   /**
    * Load personas from API or use provided personas
    */
+  /**
+   * Load personas (delegates to PersonaResolver)
+   */
   loadPersonas = async () => {
-    console.log(`🎭 Loading personas - availablePersonas: ${this.props.availablePersonas?.length || 0}, showPersonaSelection: ${this.state.showPersonaSelection}`);
-    
-          if (this.props.availablePersonas) {
-        // Use provided personas
-        console.log(`🎭 Using provided personas: ${this.props.availablePersonas.map((p: any) => p.name).join(', ')}`);
-        this.resolvePendingPersonaSelection();
-        return;
-      }
+    if (!this.personaResolver) {
+      this.setState({ isLoadingPersonas: false });
+      return;
+    }
+
+    // If using provided personas, resolve immediately
+    if (this.props.availablePersonas) {
+      this.resolvePendingPersonaSelection();
+      return;
+    }
 
     this.setState({ isLoadingPersonas: true });
-    
+
     try {
-      if (this.props.services?.api) {
-        const response: any = await this.props.services.api.get('/api/v1/personas');
-        const personas = response.personas || [];
-        console.log(`🎭 Loaded personas from API: ${personas.map((p: any) => p.name).join(', ')}`);
-        this.setState({
-          personas: personas,
-          isLoadingPersonas: false
-        }, () => {
-          this.resolvePendingPersonaSelection();
-        });
-      } else {
-        this.setState({ isLoadingPersonas: false }, () => {
-          this.resolvePendingPersonaSelection();
-        });
-      }
+      const personas = await this.personaResolver.loadPersonas(this.props.availablePersonas);
+      this.setState({
+        personas,
+        isLoadingPersonas: false
+      }, () => {
+        this.resolvePendingPersonaSelection();
+      });
     } catch (error) {
       console.error('Error loading personas:', error);
       this.setState({
@@ -442,10 +468,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Load provider settings and models
    */
+  /**
+   * Load provider settings using ModelConfigLoader (refactored)
+   * Replaces 160+ lines of duplicate logic with domain service
+   */
   loadProviderSettings = async () => {
     this.setState({ isLoadingModels: true, error: '' });
 
-    if (!this.props.services?.api) {
+    if (!this.modelConfigLoader) {
       this.setState({
         isLoadingModels: false,
         error: 'API service not available'
@@ -454,148 +484,42 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     }
 
     try {
-      const resp = await this.props.services.api.get('/api/v1/ai/providers/all-models');
-      const raw = (resp && (resp as any).models)
-        || (resp && (resp as any).data && (resp as any).data.models)
-        || (Array.isArray(resp) ? resp : []);
+      // Use ModelConfigLoader with fallback logic
+      const result = await this.modelConfigLoader.loadModelsWithFallback();
 
-      const models: ModelInfo[] = Array.isArray(raw)
-        ? raw.map((m: any) => {
-            const provider = m.provider || 'ollama';
-            const providerId = PROVIDER_SETTINGS_ID_MAP[provider] || provider;
-            const serverId = m.server_id || m.serverId || 'unknown';
-            const serverName = m.server_name || m.serverName || 'Unknown Server';
-            const name = m.name || m.id || '';
-            return {
-              name,
-              provider,
-              providerId,
-              serverName,
-              serverId,
-            } as ModelInfo;
-          })
-        : [];
-
-      if (models.length > 0) {
-        const shouldBroadcastDefault = !this.state.pendingModelKey && !this.state.selectedModel;
-
-        this.setState(prevState => {
-          if (!prevState.pendingModelKey && !prevState.selectedModel && models.length > 0) {
-            return {
-              models,
-              isLoadingModels: false,
-              selectedModel: models[0],
-            };
-          }
-
-          return {
-            models,
-            isLoadingModels: false,
-            selectedModel: prevState.selectedModel,
-          };
-        }, () => {
-          if (this.state.pendingModelKey) {
-            this.resolvePendingModelSelection();
-          } else if (shouldBroadcastDefault && this.state.selectedModel) {
-            this.broadcastModelSelection(this.state.selectedModel);
-          }
-        });
-
-        return;
-      }
-
-      // Fallback: Try Ollama-only via settings + /api/v1/ollama/models
-      try {
-        const settingsResp = await this.props.services.api.get('/api/v1/settings/instances', {
-          params: {
-            definition_id: 'ollama_servers_settings',
-            scope: 'user',
-            user_id: 'current',
-          },
-        });
-
-        let settingsData: any = null;
-        if (Array.isArray(settingsResp) && settingsResp.length > 0) settingsData = settingsResp[0];
-        else if (settingsResp && typeof settingsResp === 'object') {
-          const obj = settingsResp as any;
-          if (obj.data) settingsData = Array.isArray(obj.data) ? obj.data[0] : obj.data;
-          else settingsData = settingsResp;
-        }
-
-        const fallbackModels: ModelInfo[] = [];
-        if (settingsData && settingsData.value) {
-          const parsedValue = typeof settingsData.value === 'string'
-            ? JSON.parse(settingsData.value)
-            : settingsData.value;
-          const servers = Array.isArray(parsedValue?.servers) ? parsedValue.servers : [];
-          for (const server of servers) {
-            try {
-              const params: Record<string, string> = {
-                server_url: encodeURIComponent(server.serverAddress),
-                settings_id: 'ollama_servers_settings',
-                server_id: server.id,
-              };
-              if (server.apiKey) params.api_key = server.apiKey;
-              const modelResponse = await this.props.services.api.get('/api/v1/ollama/models', { params });
-              const serverModels = Array.isArray(modelResponse) ? modelResponse : [];
-              for (const m of serverModels) {
-                fallbackModels.push({
-                  name: m.name,
-                  provider: 'ollama',
-                  providerId: 'ollama_servers_settings',
-                  serverName: server.serverName,
-                  serverId: server.id,
-                });
-              }
-            } catch (innerErr) {
-              console.error('Fallback: error loading Ollama models for server', server?.serverName, innerErr);
-            }
-          }
-        }
-
-        if (fallbackModels.length > 0) {
-          const shouldBroadcastDefault = !this.state.pendingModelKey && !this.state.selectedModel;
-
-          this.setState(prevState => {
-            if (!prevState.pendingModelKey && !prevState.selectedModel && fallbackModels.length > 0) {
-              return {
-                models: fallbackModels,
-                isLoadingModels: false,
-                selectedModel: fallbackModels[0],
-              };
-            }
-
-            return {
-              models: fallbackModels,
-              isLoadingModels: false,
-              selectedModel: prevState.selectedModel,
-            };
-          }, () => {
-            if (this.state.pendingModelKey) {
-              this.resolvePendingModelSelection();
-            } else if (shouldBroadcastDefault && this.state.selectedModel) {
-              this.broadcastModelSelection(this.state.selectedModel);
-            }
-          });
-
-          return;
-        }
-
+      if (result.error && result.models.length === 0) {
         this.setState({
-          models: fallbackModels,
+          models: [],
+          selectedModel: null,
           isLoadingModels: false,
-        }, () => {
-          if (this.state.pendingModelKey) {
-            this.resolvePendingModelSelection();
-          }
+          error: result.error,
         });
         return;
-      } catch (fallbackErr) {
-        console.error('Fallback: error loading Ollama settings/models:', fallbackErr);
-        this.setState({ models: [], selectedModel: null, isLoadingModels: false });
       }
+
+      // Select default model using FallbackModelSelector
+      const shouldBroadcastDefault = !this.state.pendingModelKey && !this.state.selectedModel;
+      const defaultModel = this.modelSelector.selectFirst(result.models);
+
+      this.setState(prevState => {
+        const selectedModel = prevState.pendingModelKey || prevState.selectedModel
+          ? prevState.selectedModel
+          : defaultModel;
+
+        return {
+          models: result.models,
+          isLoadingModels: false,
+          selectedModel,
+        };
+      }, () => {
+        if (this.state.pendingModelKey) {
+          this.resolvePendingModelSelection();
+        } else if (shouldBroadcastDefault && this.state.selectedModel) {
+          this.broadcastModelSelection(this.state.selectedModel);
+        }
+      });
     } catch (error: any) {
-      console.error('Error loading models from all providers:', error);
+      console.error('Error loading models:', error);
       this.setState({
         models: [],
         selectedModel: null,
@@ -609,57 +533,26 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Refresh conversations list without interfering with current conversation
    */
   refreshConversationsList = async () => {
-    if (!this.props.services?.api) {
+    if (!this.userRepository || !this.conversationRepository) {
       return;
     }
-    
+
     try {
-      // First, get the current user's information to get their ID
-      const userResponse: any = await this.props.services.api.get('/api/v1/auth/me');
-      
-      // Extract the user ID from the response
-      let userId = userResponse.id;
-      
-      if (!userId) {
-        return;
-      }
-      
+      // Get current user ID
+      const userId = await this.userRepository.getCurrentUserId();
+
       // Get current page context for page-specific conversations
       const pageContext = this.getCurrentPageContext();
-      const params: any = {
+
+      // Fetch conversations
+      const conversations = await this.conversationRepository.fetchConversations({
+        userId,
+        conversationType: this.props.conversationType || 'chat',
+        pageId: pageContext?.pageId || null,
         skip: 0,
-        limit: 50,
-        conversation_type: this.props.conversationType || "chat"
-      };
-      
-      // Add page_id if available for page-specific conversations
-      if (pageContext?.pageId) {
-        params.page_id = pageContext.pageId;
-      }
-      
-      const response: any = await this.props.services.api.get(
-        `/api/v1/users/${userId}/conversations`,
-        { params }
-      );
-      
-      let conversations = [];
-      
-      if (Array.isArray(response)) {
-        conversations = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        conversations = response.data;
-      } else if (response) {
-        try {
-          if (typeof response === 'object') {
-            if (response.id && response.user_id) {
-              conversations = [response];
-            }
-          }
-        } catch (parseError) {
-          // Error parsing response
-        }
-      }
-      
+        limit: 50
+      });
+
       if (conversations.length === 0) {
         this.setState({
           conversations: [],
@@ -667,24 +560,19 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
         });
         return;
       }
-      
-      // Validate conversation objects
-      const validConversations = conversations.filter((conv: any) => {
-        return conv && typeof conv === 'object' && conv.id && conv.user_id;
-      });
-      
-      const sortedConversations = this.sortConversationsByRecency(validConversations);
-      
+
+      const sortedConversations = this.conversationRepository.sortByRecency(conversations);
+
       // Update conversations list and select current conversation if it exists
-      const currentConversation = this.state.conversation_id 
+      const currentConversation = this.state.conversation_id
         ? sortedConversations.find(conv => conv.id === this.state.conversation_id)
         : null;
-      
+
       this.setState({
         conversations: sortedConversations,
         selectedConversation: currentConversation || this.state.selectedConversation
       });
-      
+
     } catch (error: any) {
       console.error('Error refreshing conversations list:', error);
     }
@@ -694,86 +582,45 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Fetch conversations from the API
    */
   fetchConversations = async () => {
-    if (!this.props.services?.api) {
+    if (!this.userRepository || !this.conversationRepository) {
       this.setState({
         isLoadingHistory: false,
-        error: 'API service not available'
+        error: 'Repository services not available'
       });
       return;
     }
-    
+
     try {
       this.setState({ isLoadingHistory: true, error: '' });
-      
-      // First, get the current user's information to get their ID
-      const userResponse: any = await this.props.services.api.get('/api/v1/auth/me');
-      
-      // Extract the user ID from the response
-      let userId = userResponse.id;
-      
-      if (!userId) {
-        throw new Error('Could not get current user ID');
-      }
-      
+
+      // Get current user ID
+      const userId = await this.userRepository.getCurrentUserId();
+
       // Get current page context for page-specific conversations
       const pageContext = this.getCurrentPageContext();
-      const params: any = {
+
+      // Fetch conversations
+      const conversations = await this.conversationRepository.fetchConversations({
+        userId,
+        conversationType: this.props.conversationType || 'chat',
+        pageId: pageContext?.pageId || null,
         skip: 0,
-        limit: 50, // Fetch up to 50 conversations
-        conversation_type: this.props.conversationType || "chat" // Filter by conversation type
-      };
-      
-      // Add page_id if available for page-specific conversations
-      if (pageContext?.pageId) {
-        params.page_id = pageContext.pageId;
-      }
-      
-      // Use the user ID as is - backend now handles IDs with or without dashes
-      const response: any = await this.props.services.api.get(
-        `/api/v1/users/${userId}/conversations`,
-        { params }
-      );
-      
-      let conversations = [];
-      
-      if (Array.isArray(response)) {
-        conversations = response;
-      } else if (response && response.data && Array.isArray(response.data)) {
-        conversations = response.data;
-      } else if (response) {
-        // Try to extract conversations from the response in a different way
-        try {
-          if (typeof response === 'object') {
-            // Check if the response itself might be the conversations array
-            if (response.id && response.user_id) {
-              conversations = [response];
-            }
-          }
-        } catch (parseError) {
-          // Error parsing response
-        }
-      }
-      
+        limit: 50
+      });
+
       if (conversations.length === 0) {
-        // No conversations yet, but this is not an error
         this.setState({
           conversations: [],
           isLoadingHistory: false
         });
-        
         return;
       }
-      
-      // Validate conversation objects
-      const validConversations = conversations.filter((conv: any) => {
-        return conv && typeof conv === 'object' && conv.id && conv.user_id;
-      });
-      
-      const sortedConversations = this.sortConversationsByRecency(validConversations);
+
+      const sortedConversations = this.conversationRepository.sortByRecency(conversations);
 
       // Auto-select the most recent conversation if available
       const mostRecentConversation = sortedConversations.length > 0 ? sortedConversations[0] : null;
-      
+
       this.setState({
         conversations: sortedConversations,
         selectedConversation: mostRecentConversation,
@@ -858,19 +705,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     this.props.services.event.sendMessage('ai-prompt-chat', modelInfo.content);
   };
 
-  private getModelKey(modelName?: string | null, serverName?: string | null) {
-    const safeModel = (modelName || '').trim();
-    const safeServer = (serverName || '').trim();
-    return `${safeServer}:::${safeModel}`;
-  }
-
-  private getModelKeyFromInfo(model: ModelInfo | null) {
-    if (!model) {
-      return '';
-    }
-    return this.getModelKey(model.name, model.serverName);
-  }
-
   private resolvePendingModelSelection = () => {
     const { pendingModelKey, models, selectedModel, pendingModelSnapshot } = this.state;
 
@@ -881,10 +715,10 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       return;
     }
 
-    const matchingModel = models.find(model => this.getModelKeyFromInfo(model) === pendingModelKey);
+    const matchingModel = models.find(model => ModelKeyHelper.getModelKey(model.name, model.serverName) === pendingModelKey);
 
     if (matchingModel) {
-      const selectedKey = this.getModelKeyFromInfo(selectedModel);
+      const selectedKey = ModelKeyHelper.getModelKey(selectedModel?.name, selectedModel?.serverName);
       const isSameKey = selectedKey === pendingModelKey;
       const selectedIsTemporary = Boolean(selectedModel?.isTemporary);
       const matchingIsTemporary = Boolean(matchingModel.isTemporary);
@@ -909,132 +743,72 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       return;
     }
 
-    if (pendingModelSnapshot && !models.some(model => this.getModelKeyFromInfo(model) === pendingModelKey)) {
+    if (pendingModelSnapshot && !models.some(model => ModelKeyHelper.getModelKey(model.name, model.serverName) === pendingModelKey)) {
       this.setState(prevState => ({
         models: [...prevState.models, pendingModelSnapshot]
       }));
     }
   };
 
-  private resolvePendingPersonaSelection = () => {
-    const { pendingPersonaId, showPersonaSelection, personas, selectedPersona } = this.state;
-
-    if (!showPersonaSelection) {
-      if (pendingPersonaId) {
-        this.setState({ pendingPersonaId: null });
-      }
+  /**
+   * Resolve pending persona selection (delegates to PersonaResolver)
+   */
+  private resolvePendingPersonaSelection = async () => {
+    if (!this.personaResolver) {
       return;
-    }
-
-    if (!pendingPersonaId) {
-      return;
-    }
-
-    const normalizedPendingId = `${pendingPersonaId}`;
-
-    if (selectedPersona && `${selectedPersona.id}` === normalizedPendingId) {
-      this.setState({ pendingPersonaId: null });
-      return;
-    }
-
-    const existingPersona = personas.find(persona => `${persona.id}` === normalizedPendingId);
-    if (existingPersona) {
-      this.setState({
-        selectedPersona: existingPersona,
-        pendingPersonaId: null
-      });
-      return;
-    }
-
-    if (!this.props.services?.api) {
-      return;
-    }
-
-    if (this.pendingPersonaRequestId === normalizedPendingId) {
-      return;
-    }
-
-    this.pendingPersonaRequestId = normalizedPendingId;
-
-    this.fetchPersonaById(normalizedPendingId)
-      .then(persona => {
-        if (!persona) {
-          return;
-        }
-
-        const personaId = `${persona.id}`;
-
-        if (!this.state.pendingPersonaId || `${this.state.pendingPersonaId}` !== personaId) {
-          return;
-        }
-
-        this.setState(prevState => {
-          const alreadyExists = prevState.personas.some(p => `${p.id}` === personaId);
-          const personasList = alreadyExists
-            ? prevState.personas
-            : [...prevState.personas, { ...persona, id: personaId }];
-
-          return {
-            personas: personasList,
-            selectedPersona: personasList.find(p => `${p.id}` === personaId) || null,
-            pendingPersonaId: null
-          };
-        });
-      })
-      .catch(error => {
-        console.error('Error resolving pending persona:', error);
-      })
-      .finally(() => {
-        this.pendingPersonaRequestId = null;
-      });
-  };
-
-  private fetchPersonaById = async (personaId: string): Promise<PersonaInfo | null> => {
-    if (!this.props.services?.api) {
-      return null;
     }
 
     try {
-      const response: any = await this.props.services.api.get(`/api/v1/personas/${personaId}`);
-      const personaCandidate: any = response?.persona || response?.data || response;
-      if (personaCandidate && personaCandidate.id) {
-        return {
-          ...personaCandidate,
-          id: `${personaCandidate.id}`
-        } as PersonaInfo;
+      const result = await this.personaResolver.resolvePendingPersona({
+        pendingPersonaId: this.state.pendingPersonaId,
+        showPersonaSelection: this.state.showPersonaSelection,
+        personas: this.state.personas,
+        selectedPersona: this.state.selectedPersona,
+      });
+
+      // Only update if state changed
+      if (result.persona !== this.state.selectedPersona ||
+          result.pendingPersonaId !== this.state.pendingPersonaId ||
+          result.personas !== this.state.personas) {
+        this.setState({
+          selectedPersona: result.persona,
+          pendingPersonaId: result.pendingPersonaId,
+          personas: result.personas,
+        });
       }
     } catch (error) {
-      console.error('Error fetching persona by id:', error);
+      console.error('Error resolving pending persona:', error);
     }
-
-    return null;
   };
 
   /**
    * Handle conversation selection
    */
   handleConversationSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!this.conversationManager) return;
+
     const conversationId = event.target.value;
-    
-    console.log(`📋 Conversation selected: ${conversationId || 'new chat'}`);
-    
-    if (!conversationId) {
-      // New chat selected
-      this.handleNewChatClick();
-      return;
-    }
-    
-    const selectedConversation = this.state.conversations.find(
-      conv => conv.id === conversationId
-    );
-    
-    if (selectedConversation) {
-      console.log(`📂 Loading conversation: ${conversationId}`);
-      this.setState({ selectedConversation }, () => {
-        // Use the new persona-aware conversation loading method
-        this.loadConversationWithPersona(conversationId);
-      });
-    }
+    const result = this.conversationManager.handleConversationSelect({
+      conversationId,
+      conversations: this.state.conversations,
+      selectedPersona: this.state.selectedPersona,
+      showPersonaSelection: this.state.showPersonaSelection,
+      initialGreeting: this.props.initialGreeting
+    });
+
+    this.setState(result.stateUpdate as any, () => {
+      if (result.shouldStartNewChat && result.greetingContent) {
+        this.initialGreetingAdded = true;
+        this.addMessageToChat({
+          id: generateId('greeting'),
+          sender: 'ai',
+          content: result.greetingContent,
+          timestamp: new Date().toISOString()
+        });
+      } else if (result.shouldLoadConversation && result.conversationIdToLoad) {
+        this.loadConversationWithPersona(result.conversationIdToLoad);
+      }
+    });
   };
 
   /**
@@ -1090,12 +864,15 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       pendingPersonaId: null
     }, () => {
       console.log(`✅ New chat started - conversation_id: ${this.state.conversation_id}`);
-      // Only use persona greeting if persona selection is enabled and a persona is selected
-      const personaGreeting = this.state.showPersonaSelection && this.state.selectedPersona?.sample_greeting;
-      const greetingContent = personaGreeting || this.props.initialGreeting;
-      
-      console.log(`🎭 New chat greeting: showPersonaSelection=${this.state.showPersonaSelection}, selectedPersona=${this.state.selectedPersona?.name || 'none'}, using=${personaGreeting ? 'persona' : 'default'} greeting`);
-      
+
+      const greetingContent = GreetingService.getGreeting({
+        showPersonaSelection: this.state.showPersonaSelection,
+        selectedPersona: this.state.selectedPersona,
+        defaultGreeting: this.props.initialGreeting
+      });
+
+      console.log(`🎭 New chat greeting: showPersonaSelection=${this.state.showPersonaSelection}, selectedPersona=${this.state.selectedPersona?.name || 'none'}, using=${GreetingService.shouldUsePersonaGreeting({ showPersonaSelection: this.state.showPersonaSelection, selectedPersona: this.state.selectedPersona }) ? 'persona' : 'default'} greeting`);
+
       if (greetingContent) {
         this.initialGreetingAdded = true;
         this.addMessageToChat({
@@ -1112,44 +889,17 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Handle renaming a conversation
    */
   handleRenameConversation = async (conversationId: string, newTitle?: string) => {
-    // Close menu first
-    this.setState({ openConversationMenu: null });
-    
-    if (!newTitle) {
-      const conversation = this.state.conversations.find(c => c.id === conversationId);
-      const promptResult = prompt('Enter new name:', conversation?.title || 'Untitled');
-      if (!promptResult) return; // User cancelled
-      newTitle = promptResult;
-    }
-    
-    if (!this.props.services?.api) {
-      throw new Error('API service not available');
-    }
+    if (!this.conversationManager) return;
 
     try {
-      await this.props.services.api.put(
-        `/api/v1/conversations/${conversationId}`,
-        { title: newTitle }
-      );
-
-      // Update the conversation in state
-      this.setState(prevState => {
-        const updatedConversations = prevState.conversations.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, title: newTitle }
-            : conv
-        );
-
-        const updatedSelectedConversation = prevState.selectedConversation?.id === conversationId
-          ? { ...prevState.selectedConversation, title: newTitle }
-          : prevState.selectedConversation;
-
-        return {
-          conversations: updatedConversations,
-          selectedConversation: updatedSelectedConversation
-        };
+      const result = await this.conversationManager.handleRenameConversation({
+        conversationId,
+        newTitle,
+        conversations: this.state.conversations,
+        selectedConversation: this.state.selectedConversation
       });
 
+      this.setState(result.stateUpdate as any);
     } catch (error: any) {
       throw new Error(`Error renaming conversation: ${error.message || 'Unknown error'}`);
     }
@@ -1159,123 +909,67 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Toggle conversation menu
    */
   toggleConversationMenu = (conversationId: string, event?: React.MouseEvent<HTMLButtonElement>) => {
-    console.log('🔍 toggleConversationMenu called:', { conversationId, hasEvent: !!event });
-    
-    const isOpening = this.state.openConversationMenu !== conversationId;
-    console.log('🔍 isOpening:', isOpening);
-    
-    if (isOpening) {
-      // Simple toggle - CSS handles all positioning
-      this.setState({
-        openConversationMenu: conversationId
-      }, () => {
-        console.log('🔍 Menu opened for conversation:', conversationId);
-      });
-    } else {
-      console.log('🔍 Closing menu');
-      this.setState({
-        openConversationMenu: null
-      });
-    }
+    if (!this.conversationManager) return;
+
+    const result = this.conversationManager.toggleConversationMenu({
+      conversationId,
+      currentOpenMenu: this.state.openConversationMenu
+    });
+
+    this.setState(result.stateUpdate as any);
   };
 
   /**
    * Handle sharing a conversation
    */
   handleShareConversation = async (conversationId: string) => {
-    // Close menu
-    this.setState({ openConversationMenu: null });
-    
-    // For now, just copy the conversation URL to clipboard
-    try {
-      const url = `${window.location.origin}${window.location.pathname}?conversation=${conversationId}`;
-      await navigator.clipboard.writeText(url);
-      
-      // Show a temporary success message
-      this.addMessageToChat({
-        id: generateId('share-success'),
-        sender: 'ai',
-        content: '📋 Conversation link copied to clipboard!',
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      this.addMessageToChat({
-        id: generateId('share-error'),
-        sender: 'ai',
-        content: '❌ Failed to copy conversation link',
-        timestamp: new Date().toISOString()
-      });
-    }
+    if (!this.conversationManager) return;
+
+    const result = await this.conversationManager.handleShareConversation(conversationId);
+    this.setState(result.stateUpdate as any);
   };
 
   /**
    * Handle deleting a conversation
    */
   handleDeleteConversation = async (conversationId: string) => {
-    // Close menu first
-    this.setState({ openConversationMenu: null });
-    
-    if (!this.props.services?.api) {
-      throw new Error('API service not available');
-    }
+    if (!this.conversationManager) return;
 
     try {
-      await this.props.services.api.delete(`/api/v1/conversations/${conversationId}`);
-
-      // Update state to remove the conversation
-      this.setState(prevState => {
-        const updatedConversations = prevState.conversations.filter(
-          conv => conv.id !== conversationId
-        );
-
-        // If the deleted conversation was selected, clear selection and start new chat
-        const wasSelected = prevState.selectedConversation?.id === conversationId;
-
-        return {
-          conversations: updatedConversations,
-          selectedConversation: wasSelected ? null : prevState.selectedConversation,
-          conversation_id: wasSelected ? null : prevState.conversation_id,
-          messages: wasSelected ? [] : prevState.messages,
-          // Reset persona to null when starting new chat (respects persona toggle state)
-          selectedPersona: wasSelected ? (prevState.showPersonaSelection ? prevState.selectedPersona : null) : prevState.selectedPersona
-        };
-      }, () => {
-        // If we deleted the selected conversation, add greeting if available
-        if (this.state.selectedConversation === null) {
-          // Only use persona greeting if persona selection is enabled and a persona is selected
-          // Ensure persona is null when personas are disabled
-          const effectivePersona = this.state.showPersonaSelection ? this.state.selectedPersona : null;
-          const greetingContent = (this.state.showPersonaSelection && effectivePersona?.sample_greeting) 
-            || this.props.initialGreeting;
-          
-          if (greetingContent) {
-            this.initialGreetingAdded = true;
-            this.addMessageToChat({
-              id: generateId('greeting'),
-              sender: 'ai',
-              content: greetingContent,
-              timestamp: new Date().toISOString()
-            });
-          }
-        }
+      const result = await this.conversationManager.handleDeleteConversation({
+        conversationId,
+        conversations: this.state.conversations,
+        selectedConversation: this.state.selectedConversation,
+        showPersonaSelection: this.state.showPersonaSelection,
+        selectedPersona: this.state.selectedPersona,
+        initialGreeting: this.props.initialGreeting
       });
 
+      this.setState(result.stateUpdate as any, () => {
+        if (result.greetingContent) {
+          this.initialGreetingAdded = true;
+          this.addMessageToChat({
+            id: generateId('greeting'),
+            sender: 'ai',
+            content: result.greetingContent,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
     } catch (error: any) {
       throw new Error(`Error deleting conversation: ${error.message || 'Unknown error'}`);
     }
   };
 
   /**
-   * Load conversation history from the API
+   * Load conversation history from the API (delegates to ConversationLoader)
    */
   loadConversationHistory = async (conversationId: string) => {
-    console.log(`📚 Loading conversation history: ${conversationId}`);
-    
-    if (!this.props.services?.api) {
+    if (!this.conversationLoader) {
       this.setState({ error: 'API service not available', isInitializing: false });
       return;
     }
-    
+
     try {
       // Clear current conversation without showing initial greeting
       console.log(`🧹 Clearing messages for conversation load: ${conversationId}`);
@@ -1285,43 +979,26 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
         isLoadingHistory: true,
         error: ''
       });
-      
-      // Fetch conversation with messages
-      const response: any = await this.props.services.api.get(
-        `/api/v1/conversations/${conversationId}/with-messages`
-      );
-      
+
+      // Load conversation history using ConversationLoader
+      const result = await this.conversationLoader.loadConversationHistory(conversationId);
+
       // Mark that we've loaded a conversation, so don't show initial greeting
       this.initialGreetingAdded = true;
-      
-      // Process messages
-      const messages: ChatMessage[] = [];
-      
-      if (response && response.messages && Array.isArray(response.messages)) {
-        // Convert API message format to ChatMessage format
-        messages.push(...response.messages.map((msg: any) => ({
-          id: msg.id || generateId('history'),
-          sender: msg.sender === 'llm' ? 'ai' : 'user' as 'ai' | 'user',
-          content: this.cleanMessageContent(msg.message),
-          timestamp: msg.created_at
-        })));
-      }
-      
+
       // Update state
       this.setState({
-        messages,
-        conversation_id: conversationId,
+        messages: result.messages,
+        conversation_id: result.conversationId,
         isLoadingHistory: false,
         isInitializing: false
       });
-      
-      console.log(`✅ Conversation history loaded: ${conversationId}, ${messages.length} messages`);
-      
+
       // Scroll to bottom after loading history so the latest reply is visible
       setTimeout(() => {
         this.scrollToBottom({ force: true });
       }, 100);
-      
+
     } catch (error) {
       // Error loading conversation history
       this.setState({
@@ -1333,16 +1010,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   }
 
   /**
-   * Load conversation history with persona and model auto-selection
+   * Load conversation history with persona and model auto-selection (delegates to ConversationLoader)
    */
   loadConversationWithPersona = async (conversationId: string) => {
-    console.log(`🔄 Loading conversation with persona: ${conversationId}`);
-    
-    if (!this.props.services?.api || !this.aiService) {
+    if (!this.conversationLoader) {
       this.setState({ error: 'API service not available', isInitializing: false });
       return;
     }
-    
+
     try {
       // Clear current conversation without showing initial greeting
       this.setState({
@@ -1351,122 +1026,59 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
         isLoadingHistory: true,
         error: ''
       });
-      
-      // Get the selected conversation from state to access model/server info
-      const selectedConversation = this.state.selectedConversation;
-      
-      // Try to fetch conversation with persona details first
-      let conversationWithPersona: ConversationWithPersona | null = null;
-      try {
-         // @ts-ignore
-        conversationWithPersona = await this.aiService.loadConversationWithPersona(conversationId);
-      } catch (error) {
-        // If the new endpoint doesn't exist yet, fall back to regular conversation loading
-        console.warn('Persona-aware conversation loading not available, falling back to regular loading');
-        // Use the selected conversation data we already have
-        conversationWithPersona = selectedConversation;
-      }
-      
-      const showPersonaSelection = this.state.showPersonaSelection;
-      const personaFromConversation = showPersonaSelection && conversationWithPersona?.persona
-        ? { ...conversationWithPersona.persona, id: `${conversationWithPersona.persona.id}` }
-        : null;
-      const personaIdFromConversation = showPersonaSelection
-        ? (personaFromConversation?.id
-          || (conversationWithPersona?.persona_id ? `${conversationWithPersona.persona_id}` : null))
-        : null;
-      const pendingPersonaId = personaIdFromConversation && personaIdFromConversation.trim() !== ''
-        ? personaIdFromConversation
-        : null;
 
-      const modelName = conversationWithPersona?.model?.trim();
-      const serverName = conversationWithPersona?.server?.trim();
-      const hasModelMetadata = Boolean(modelName && serverName);
+      // Load conversation using ConversationLoader
+      const result = await this.conversationLoader.loadConversationWithPersona({
+        conversationId,
+        showPersonaSelection: this.state.showPersonaSelection,
+        models: this.state.models,
+        personas: this.state.personas,
+        selectedConversation: this.state.selectedConversation,
+      });
 
-      const pendingModelKey = hasModelMetadata
-        ? this.getModelKey(modelName, serverName)
-        : null;
-      const matchingModel = pendingModelKey
-        ? this.state.models.find(model => this.getModelKeyFromInfo(model) === pendingModelKey)
-        : null;
-      const pendingModelSnapshot = pendingModelKey && !matchingModel && hasModelMetadata
-        ? {
-            name: modelName!,
-            provider: 'ollama',
-            providerId: 'ollama_servers_settings',
-            serverName: serverName!,
-            serverId: 'unknown',
-            isTemporary: true
-          } as ModelInfo
-        : null;
+      // Mark that we've loaded a conversation, so don't show initial greeting
+      this.initialGreetingAdded = true;
 
-      const previousSelectedModelKey = this.getModelKeyFromInfo(this.state.selectedModel);
+      // Track previous model key for broadcasting
+      const previousSelectedModelKey = ModelKeyHelper.getModelKeyFromInfo(this.state.selectedModel);
 
-      this.setState(prevState => {
-        const nextState: Partial<CollectionChatState> = {
-          pendingModelKey,
-          pendingModelSnapshot,
-          pendingPersonaId,
-        };
-
-        if (matchingModel) {
-          nextState.selectedModel = matchingModel;
-        } else if (pendingModelSnapshot) {
-          nextState.selectedModel = pendingModelSnapshot;
-        } else if (!pendingModelKey) {
-          nextState.pendingModelKey = null;
-          nextState.pendingModelSnapshot = null;
-        }
-
-        if (showPersonaSelection) {
-          if (personaFromConversation) {
-            const existingPersona = prevState.personas.find(p => `${p.id}` === personaFromConversation.id);
-            if (existingPersona) {
-              nextState.selectedPersona = existingPersona;
-            } else {
-              nextState.personas = [...prevState.personas, personaFromConversation];
-              nextState.selectedPersona = personaFromConversation;
-            }
-          } else if (pendingPersonaId) {
-            nextState.pendingPersonaId = pendingPersonaId;
-            const existingPersona = prevState.personas.find(p => `${p.id}` === pendingPersonaId);
-            nextState.selectedPersona = existingPersona || null;
-          } else {
-            nextState.selectedPersona = null;
-            nextState.pendingPersonaId = null;
-          }
-        } else {
-          nextState.selectedPersona = null;
-          nextState.pendingPersonaId = null;
-        }
-
-        return nextState as Pick<CollectionChatState, keyof CollectionChatState>;
+      // Update state with loaded data
+      this.setState({
+        messages: result.messages,
+        conversation_id: result.conversationId,
+        pendingModelKey: result.pendingModelKey,
+        pendingModelSnapshot: result.pendingModelSnapshot,
+        selectedModel: result.selectedModel,
+        pendingPersonaId: result.pendingPersonaId,
+        selectedPersona: result.selectedPersona,
+        personas: result.personas,
+        isLoadingHistory: false,
+        isInitializing: false,
       }, () => {
-        const newSelectedModelKey = this.getModelKeyFromInfo(this.state.selectedModel);
+        // Broadcast model selection if changed
+        const newSelectedModelKey = ModelKeyHelper.getModelKeyFromInfo(this.state.selectedModel);
         if (
-          (matchingModel || pendingModelSnapshot) &&
+          result.selectedModel &&
           newSelectedModelKey &&
           newSelectedModelKey !== previousSelectedModelKey
         ) {
-          const currentModel = this.state.selectedModel;
-          if (currentModel) {
-            this.broadcastModelSelection(currentModel);
-          }
+          this.broadcastModelSelection(result.selectedModel);
         }
 
-        if (pendingModelKey) {
+        // Resolve pending model/persona
+        if (result.pendingModelKey) {
           this.resolvePendingModelSelection();
         }
         if (this.state.pendingPersonaId) {
           this.resolvePendingPersonaSelection();
         }
       });
-      
-      // Now load the conversation messages using the regular method
-      await this.loadConversationHistory(conversationId);
-      
-      console.log(`✅ Conversation loaded successfully: ${conversationId}`);
-      
+
+      // Scroll to bottom after loading history
+      setTimeout(() => {
+        this.scrollToBottom({ force: true });
+      }, 100);
+
     } catch (error) {
       console.error('Error loading conversation with persona:', error);
       // Fall back to regular conversation loading
@@ -1477,17 +1089,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Update conversation's persona
    */
+  /**
+   * Update conversation persona (delegates to ConversationLoader)
+   */
   updateConversationPersona = async (conversationId: string, personaId: string | null) => {
-    if (!this.aiService) {
-      throw new Error('AI service not available');
+    if (!this.conversationLoader) {
+      throw new Error('Conversation loader not available');
     }
-
-    try {
-      await this.aiService.updateConversationPersona(conversationId, personaId);
-    } catch (error) {
-      console.error('Error updating conversation persona:', error);
-      throw error;
-    }
+    return this.conversationLoader.updateConversationPersona(conversationId, personaId);
   };
 
   /**
@@ -1876,22 +1485,12 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Clean up message content by removing excessive newlines and search/document context
    */
+  /**
+   * Clean message content for display (delegates to ConversationLoader)
+   */
   cleanMessageContent = (content: string): string => {
-    if (!content) return content;
-    
-    let cleanedContent = content
-      .replace(/\r\n/g, '\n')      // Normalize line endings
-      .replace(/\n{3,}/g, '\n\n')  // Replace 3+ newlines with 2 (paragraph break)
-      .trim();                     // Remove leading/trailing whitespace
-    
-    // Remove web search context that might have been stored in old messages
-    cleanedContent = cleanedContent.replace(/\n\n\[WEB SEARCH CONTEXT[^]*$/, '');
-    
-    // Remove document context that might have been stored in old messages
-    cleanedContent = cleanedContent.replace(/^Document Context:[^]*?\n\nUser Question: /, '');
-    cleanedContent = cleanedContent.replace(/^[^]*?\n\nUser Question: /, '');
-    
-    return cleanedContent.trim();
+    if (!this.conversationLoader) return content;
+    return this.conversationLoader.cleanMessageContent(content);
   };
 
   /**
@@ -1912,276 +1511,44 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     });
   }
 
-  /**
-   * Determine how far above the live edge we should keep the viewport.
-   * Ensures we never hide the entire final message when it's short.
-   */
-  private getEffectiveAnchorOffset = (container: HTMLDivElement): number => {
-    const lastMessage = this.state.messages[this.state.messages.length - 1];
-    if (lastMessage?.isStreaming) {
-      return 0;
-    }
-
-    const baseOffset = Math.max(this.SCROLL_ANCHOR_OFFSET, 0);
-    if (baseOffset === 0) {
-      return 0;
-    }
-
-    const lastMessageElement = container.querySelector('.message:last-of-type') as HTMLElement | null;
-    if (!lastMessageElement) {
-      return baseOffset;
-    }
-
-    const lastMessageHeight = lastMessageElement.offsetHeight;
-    const maxAllowableOffset = Math.max(lastMessageHeight - this.MIN_VISIBLE_LAST_MESSAGE_HEIGHT, 0);
-    return Math.min(baseOffset, maxAllowableOffset);
-  };
-
-  private getScrollMetrics = () => {
-    const container = this.chatHistoryRef.current;
-    if (!container) {
-      return {
-        distanceFromBottom: 0,
-        dynamicOffset: 0
-      };
-    }
-
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
-    const dynamicOffset = this.getEffectiveAnchorOffset(container);
-
-    return { distanceFromBottom, dynamicOffset };
-  };
-
-  private getConversationSortTimestamp = (conversation: any): number => {
-    if (!conversation || typeof conversation !== 'object') {
-      return 0;
-    }
-
-    const candidateFields = [
-      conversation.last_message_at,
-      conversation.lastMessageAt,
-      conversation.latest_message_at,
-      conversation.latestMessageAt,
-      conversation.started_at,
-      conversation.startedAt,
-      conversation.updated_at,
-      conversation.updatedAt,
-      conversation.created_at,
-      conversation.createdAt
-    ];
-
-    for (const maybeDate of candidateFields) {
-      if (!maybeDate) continue;
-      const timestamp = new Date(maybeDate).getTime();
-      if (!Number.isNaN(timestamp)) {
-        return timestamp;
-      }
-    }
-
-    return 0;
-  };
-
-  private sortConversationsByRecency = (conversations: any[]): any[] => {
-    return [...conversations].sort((a, b) => {
-      const timeA = this.getConversationSortTimestamp(a);
-      const timeB = this.getConversationSortTimestamp(b);
-
-      return timeB - timeA;
-    });
-  };
-
-  /**
-   * Check if user is near the bottom of the chat
-   */
+  // Scroll methods now delegated to ChatScrollManager
   isUserNearBottom = (thresholdOverride?: number) => {
-    if (!this.chatHistoryRef.current) return true;
-
-    const { distanceFromBottom, dynamicOffset } = this.getScrollMetrics();
-    const threshold = thresholdOverride ?? Math.max(dynamicOffset, this.NEAR_BOTTOM_EPSILON);
-
-    return distanceFromBottom <= threshold;
+    return this.scrollManager.isUserNearBottom(thresholdOverride);
   };
 
-  private hasRecentUserIntent = () => {
-    if (!this.lastUserScrollTs) {
-      return false;
-    }
-
-    return Date.now() - this.lastUserScrollTs <= this.USER_SCROLL_INTENT_GRACE_MS;
-  };
-
-  private canAutoScroll = (requestedAt: number = Date.now()) => {
-    if (this.state.isAutoScrollLocked) {
-      return false;
-    }
-
-    if (this.lastUserScrollTs && this.lastUserScrollTs > requestedAt) {
-      return false;
-    }
-
-    return this.isUserNearBottom();
-  };
-
-  private cancelPendingAutoScroll = () => {
-    if (this.pendingAutoScrollTimeout) {
-      clearTimeout(this.pendingAutoScrollTimeout);
-      this.pendingAutoScrollTimeout = null;
-    }
-  };
-
-  private registerUserScrollIntent = () => {
-    this.lastUserScrollTs = Date.now();
-    this.cancelPendingAutoScroll();
-
-    this.setState(prevState => {
-      if (prevState.isAutoScrollLocked && prevState.showScrollToBottom) {
-        return null;
-      }
-
-      return {
-        isAutoScrollLocked: true,
-        showScrollToBottom: true
-      };
-    });
-  };
-
-  /**
-   * Update scroll state based on current position
-   */
   updateScrollState = (options: { fromUser?: boolean; manualUnlock?: boolean } = {}) => {
-    if (!this.chatHistoryRef.current) return;
-
-    const { fromUser = false, manualUnlock = false } = options;
-    const { distanceFromBottom, dynamicOffset } = this.getScrollMetrics();
-    const nearBottomThreshold = Math.max(dynamicOffset, this.NEAR_BOTTOM_EPSILON);
-    const isNearBottom = distanceFromBottom <= nearBottomThreshold;
-    const isAtStrictBottom = distanceFromBottom <= this.STRICT_BOTTOM_THRESHOLD;
-
-    let shouldClearUserIntent = false;
-    let shouldSuppressManualIntent = false;
-
-    this.setState(prevState => {
-      let isAutoScrollLocked = prevState.isAutoScrollLocked;
-
-      if (manualUnlock) {
-        if (isAutoScrollLocked) {
-          shouldClearUserIntent = true;
-        }
-        isAutoScrollLocked = false;
-      } else if (fromUser) {
-        if (isAtStrictBottom) {
-          if (isAutoScrollLocked) {
-            shouldClearUserIntent = true;
-          }
-          isAutoScrollLocked = false;
-          shouldSuppressManualIntent = true;
-        } else {
-          isAutoScrollLocked = true;
-        }
-      } else if (isAtStrictBottom && prevState.isAutoScrollLocked && !this.hasRecentUserIntent()) {
-        isAutoScrollLocked = false;
-        shouldClearUserIntent = true;
-      }
-
-      const nextShowScrollToBottom = isAutoScrollLocked ? true : !isAtStrictBottom;
-
-      if (
-        prevState.isNearBottom === isNearBottom &&
-        prevState.showScrollToBottom === nextShowScrollToBottom &&
-        prevState.isAutoScrollLocked === isAutoScrollLocked
-      ) {
-        return null;
-      }
-
-      return {
-        isNearBottom,
-        showScrollToBottom: nextShowScrollToBottom,
-        isAutoScrollLocked
-      };
-    }, () => {
-      if (shouldClearUserIntent && !this.state.isAutoScrollLocked) {
-        this.lastUserScrollTs = 0;
-      }
-
-      if (shouldSuppressManualIntent) {
-        this.lastUserScrollTs = 0;
-      }
-    });
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.updateScrollState(options);
   };
 
-  /**
-   * Handle scroll events to track user scroll position
-   */
   handleScroll = () => {
-    if (this.isProgrammaticScroll) {
-      this.updateScrollState();
-      return;
-    }
-
-    this.registerUserScrollIntent();
-    this.updateScrollState({ fromUser: true });
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.handleScroll();
   };
 
-  handleUserScrollIntent = (_source: 'pointer' | 'wheel' | 'touch' | 'key') => {
-    this.registerUserScrollIntent();
+  handleUserScrollIntent = (source: 'pointer' | 'wheel' | 'touch' | 'key') => {
+    this.scrollManager.handleUserScrollIntent(source);
   };
 
   handleScrollToBottomClick = () => {
-    this.scrollToBottom({ behavior: 'smooth', manual: true });
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.handleScrollToBottomClick();
   };
 
   private followStreamIfAllowed = () => {
-    if (this.canAutoScroll()) {
-      this.scrollToBottom();
-    } else {
-      this.updateScrollState();
-    }
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.followStreamIfAllowed();
   };
 
-  /**
-   * Scroll the chat history to the bottom while respecting the anchor offset
-   */
-  scrollToBottom = (options: ScrollToBottomOptions = {}) => {
-    if (!this.chatHistoryRef.current) return;
+  scrollToBottom = (options?: { behavior?: ScrollBehavior; manual?: boolean; force?: boolean }) => {
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.scrollToBottom(options);
+  };
 
-    this.cancelPendingAutoScroll();
-    const { behavior = 'auto', manual = false, force = false } = options;
-    const container = this.chatHistoryRef.current;
-
-    const useAnchorOffset = !(manual || force);
-    const dynamicOffset = useAnchorOffset ? this.getEffectiveAnchorOffset(container) : 0;
-    const maxScrollTop = Math.max(container.scrollHeight - container.clientHeight, 0);
-    const targetTop = Math.max(maxScrollTop - dynamicOffset, 0);
-
-    this.isProgrammaticScroll = true;
-
-    if (typeof container.scrollTo === 'function') {
-      try {
-        container.scrollTo({ top: targetTop, behavior });
-      } catch (_err) {
-        container.scrollTop = targetTop;
-      }
-    } else {
-      container.scrollTop = targetTop;
-    }
-
-    const finalize = () => {
-      this.isProgrammaticScroll = false;
-      if (manual || force) {
-        this.lastUserScrollTs = 0;
-        this.updateScrollState({ manualUnlock: true });
-      } else {
-        this.updateScrollState();
-      }
-    };
-
-    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-      window.requestAnimationFrame(finalize);
-    } else {
-      setTimeout(finalize, 0);
-    }
-  }
+  private debouncedScrollToBottom = (options?: { behavior?: ScrollBehavior; manual?: boolean; force?: boolean }) => {
+    this.scrollManager.setMessages(this.state.messages);
+    this.scrollManager.debouncedScrollToBottom(options);
+  };
 
   /**
    * Focus the input field
@@ -2559,14 +1926,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
               </div>
               
               
-              {/* Chat input area */}
-              {/* <div className="chat-input-container">
-                <div className="chat-input-wrapper">
-                  <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
-                      <ChatInput />
-                  </div>
-                </div>
-              </div> */}
                 <ChatInput
                   inputText={inputText}
                   isLoading={isLoading}

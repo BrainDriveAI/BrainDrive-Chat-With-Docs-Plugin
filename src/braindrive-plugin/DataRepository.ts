@@ -6,68 +6,69 @@ import type {
     ChatMessage,
     ContextRetrievalResult,
 } from './pluginTypes';
+import { HttpClient } from '../infrastructure/http';
+import {
+    CollectionRepository,
+    DocumentRepository,
+    ChatSessionRepository,
+    RAGRepository,
+    type RAGQuery,
+} from '../infrastructure/repositories';
 
-// Utility for making API calls, handling the switch between props.services.api and raw fetch
-const apiCall = async (servicesApi: Services['api'], baseUrl: string, endpoint: string, method: 'GET' | 'POST' | 'PUT' | 'DELETE', data?: any) => {
-    const url = `${baseUrl}${endpoint}`;
-    
-    if (servicesApi) {
-        // Use provided service API
-        switch (method) {
-            case 'GET': return servicesApi.get(url);
-            case 'POST': return servicesApi.post(url, data);
-            case 'PUT': return servicesApi.put(url, data);
-            case 'DELETE': return servicesApi.delete(url);
-        }
-    } else {
-        // Fallback to raw fetch
-        const options: RequestInit = {
-            method,
-            headers: { 'Content-Type': 'application/json' },
-            body: data ? JSON.stringify(data) : undefined,
-            signal: method === 'GET' ? AbortSignal.timeout(10000) : undefined, // Timeout for GETs
-        };
-
-        const response = await fetch(url, options);
-        if (!response.ok) {
-            throw new Error(`API call failed with status: ${response.status}`);
-        }
-        // Handle no-content responses (e.g., DELETE)
-        return response.status === 204 ? {} : response.json();
-    }
-}
-
+/**
+ * DataRepository - Facade over specialized repositories
+ *
+ * @deprecated This class is maintained for backward compatibility.
+ * New code should use the specialized repositories directly:
+ * - CollectionRepository for collections
+ * - DocumentRepository for documents
+ * - ChatSessionRepository for chat sessions/messages
+ * - RAGRepository for RAG search
+ */
 export class DataRepository {
-    private apiService: Services['api'];
-    private apiBaseUrl: string;
+    private collectionRepo: CollectionRepository;
+    private documentRepo: DocumentRepository;
+    private chatSessionRepo: ChatSessionRepository;
+    private ragRepo: RAGRepository;
 
     constructor(apiService: Services['api'], apiBaseUrl: string) {
-        this.apiService = apiService;
-        this.apiBaseUrl = apiBaseUrl;
+        // Create HttpClient (anti-corruption layer for BrainDrive API)
+        const http = new HttpClient(apiService, apiBaseUrl);
+
+        // Initialize specialized repositories
+        this.collectionRepo = new CollectionRepository(http);
+        this.documentRepo = new DocumentRepository(http);
+        this.chatSessionRepo = new ChatSessionRepository(http);
+        this.ragRepo = new RAGRepository(http);
     }
 
+    // Delegate to CollectionRepository
     public getCollections = (): Promise<Collection[]> => {
-        return apiCall(this.apiService, this.apiBaseUrl, '/collections/', 'GET');
+        return this.collectionRepo.findAll();
     }
 
+    // Delegate to DocumentRepository
     public getDocuments = async (collectionId: string): Promise<Document[]> => {
-        return apiCall(this.apiService, this.apiBaseUrl, `/documents/?collection_id=${collectionId}`, 'GET');
+        return this.documentRepo.findByCollection(collectionId);
     }
 
+    // Delegate to ChatSessionRepository
     public getChatSessions = async (): Promise<ChatSession[]> => {
-        return apiCall(this.apiService, this.apiBaseUrl, '/chat/sessions', 'GET');
+        return this.chatSessionRepo.findAll();
     }
 
+    // Delegate to ChatSessionRepository
     public getChatMessages = async (sessionId: string): Promise<ChatMessage[]> => {
-        return apiCall(this.apiService, this.apiBaseUrl, `/chat/messages?session_id=${sessionId}`, 'GET');
+        return this.chatSessionRepo.findMessages(sessionId);
     }
 
+    // Delegate to RAGRepository
     public getRelevantContent = async (
         query: string,
         collectionId: string,
         chatHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
     ): Promise<ContextRetrievalResult> => {
-        const searchData = {
+        const ragQuery: RAGQuery = {
             query_text: query,
             collection_id: collectionId,
             chat_history: chatHistory,
@@ -80,15 +81,30 @@ export class DataRepository {
                 use_intent_classification: true,
                 query_transformation: {
                     enabled: true,
-                    methods: [
-                        // Let backend default handle if omitted; leaving empty uses defaults
-                    ]
+                    methods: [],
                 },
                 filters: {
                     min_similarity: 0.8,
                 }
             }
         };
-        return apiCall(this.apiService, this.apiBaseUrl, '/search/', 'POST', searchData)
+        return this.ragRepo.search(ragQuery);
+    }
+
+    // Expose repositories for direct access (migration path)
+    public getCollectionRepository(): CollectionRepository {
+        return this.collectionRepo;
+    }
+
+    public getDocumentRepository(): DocumentRepository {
+        return this.documentRepo;
+    }
+
+    public getChatSessionRepository(): ChatSessionRepository {
+        return this.chatSessionRepo;
+    }
+
+    public getRAGRepository(): RAGRepository {
+        return this.ragRepo;
     }
 }

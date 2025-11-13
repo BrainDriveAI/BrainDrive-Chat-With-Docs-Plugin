@@ -11,7 +11,12 @@
     "dev:standalone": "webpack serve --config webpack.dev.js",
     "pack:zip": "npm run build && cd dist && zip -r ../artifact.zip .",
     "pack:tar": "npm run build && cd dist && tar -czf ../artifact.tar.gz .",
-    "test-dom": "ts-node --transpile-only --require ./tests/test_dom_setup.js ./tests/test_component.js"
+    "test-dom": "ts-node --transpile-only --require ./tests/test_dom_setup.js ./tests/test_component.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:domain": "jest src/domain --passWithNoTests",
+    "test:infrastructure": "jest src/infrastructure --passWithNoTests",
+    "test:coverage": "jest --coverage"
   },
   "keywords": [
     "ai",
@@ -87,7 +92,7 @@
     "preset": "ts-jest",
     "testEnvironment": "jsdom",
     "setupFilesAfterEnv": [
-      "<rootDir>/src/setup-tests.ts"
+      "<rootDir>/src/setupTests.ts"
     ],
     "moduleNameMapper": {
       "\\.(css|less|scss|sass)$": "<rootDir>/src/__mocks__/style-mock.ts"
