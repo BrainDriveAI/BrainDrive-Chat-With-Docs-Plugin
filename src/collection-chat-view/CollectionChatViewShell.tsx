@@ -37,6 +37,7 @@ import { UserRepository } from '../domain/users/UserRepository';
 import { ConversationRepository } from '../domain/conversations/ConversationRepository';
 import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
 import { ConversationLoader } from '../domain/conversations/ConversationLoader';
+import { PersonaResolver } from '../domain/personas/PersonaResolver';
 
 // Import icons
 // Icons previously used in the bottom history panel are no longer needed here
@@ -59,10 +60,10 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private userRepository: UserRepository | null = null;
   private conversationRepository: ConversationRepository | null = null;
   private conversationLoader: ConversationLoader | null = null;
+  private personaResolver: PersonaResolver | null = null;
   private currentStreamingAbortController: AbortController | null = null;
   private menuButtonRef: HTMLButtonElement | null = null;
   private scrollManager: ChatScrollManager;
-  private pendingPersonaRequestId: string | null = null;
 
   constructor(props: CollectionChatProps) {
     super(props);
@@ -157,6 +158,13 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       this.conversationLoader = new ConversationLoader({
         api: props.services.api,
         aiService: this.aiService,
+      });
+    }
+
+    // Initialize PersonaResolver
+    if (props.services.api) {
+      this.personaResolver = new PersonaResolver({
+        api: props.services.api,
       });
     }
 
@@ -419,34 +427,31 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   /**
    * Load personas from API or use provided personas
    */
+  /**
+   * Load personas (delegates to PersonaResolver)
+   */
   loadPersonas = async () => {
-    console.log(`🎭 Loading personas - availablePersonas: ${this.props.availablePersonas?.length || 0}, showPersonaSelection: ${this.state.showPersonaSelection}`);
-    
-          if (this.props.availablePersonas) {
-        // Use provided personas
-        console.log(`🎭 Using provided personas: ${this.props.availablePersonas.map((p: any) => p.name).join(', ')}`);
-        this.resolvePendingPersonaSelection();
-        return;
-      }
+    if (!this.personaResolver) {
+      this.setState({ isLoadingPersonas: false });
+      return;
+    }
+
+    // If using provided personas, resolve immediately
+    if (this.props.availablePersonas) {
+      this.resolvePendingPersonaSelection();
+      return;
+    }
 
     this.setState({ isLoadingPersonas: true });
-    
+
     try {
-      if (this.props.services?.api) {
-        const response: any = await this.props.services.api.get('/api/v1/personas');
-        const personas = response.personas || [];
-        console.log(`🎭 Loaded personas from API: ${personas.map((p: any) => p.name).join(', ')}`);
-        this.setState({
-          personas: personas,
-          isLoadingPersonas: false
-        }, () => {
-          this.resolvePendingPersonaSelection();
-        });
-      } else {
-        this.setState({ isLoadingPersonas: false }, () => {
-          this.resolvePendingPersonaSelection();
-        });
-      }
+      const personas = await this.personaResolver.loadPersonas(this.props.availablePersonas);
+      this.setState({
+        personas,
+        isLoadingPersonas: false
+      }, () => {
+        this.resolvePendingPersonaSelection();
+      });
     } catch (error) {
       console.error('Error loading personas:', error);
       this.setState({
@@ -756,98 +761,35 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     }
   };
 
-  private resolvePendingPersonaSelection = () => {
-    const { pendingPersonaId, showPersonaSelection, personas, selectedPersona } = this.state;
-
-    if (!showPersonaSelection) {
-      if (pendingPersonaId) {
-        this.setState({ pendingPersonaId: null });
-      }
+  /**
+   * Resolve pending persona selection (delegates to PersonaResolver)
+   */
+  private resolvePendingPersonaSelection = async () => {
+    if (!this.personaResolver) {
       return;
-    }
-
-    if (!pendingPersonaId) {
-      return;
-    }
-
-    const normalizedPendingId = `${pendingPersonaId}`;
-
-    if (selectedPersona && `${selectedPersona.id}` === normalizedPendingId) {
-      this.setState({ pendingPersonaId: null });
-      return;
-    }
-
-    const existingPersona = personas.find(persona => `${persona.id}` === normalizedPendingId);
-    if (existingPersona) {
-      this.setState({
-        selectedPersona: existingPersona,
-        pendingPersonaId: null
-      });
-      return;
-    }
-
-    if (!this.props.services?.api) {
-      return;
-    }
-
-    if (this.pendingPersonaRequestId === normalizedPendingId) {
-      return;
-    }
-
-    this.pendingPersonaRequestId = normalizedPendingId;
-
-    this.fetchPersonaById(normalizedPendingId)
-      .then(persona => {
-        if (!persona) {
-          return;
-        }
-
-        const personaId = `${persona.id}`;
-
-        if (!this.state.pendingPersonaId || `${this.state.pendingPersonaId}` !== personaId) {
-          return;
-        }
-
-        this.setState(prevState => {
-          const alreadyExists = prevState.personas.some(p => `${p.id}` === personaId);
-          const personasList = alreadyExists
-            ? prevState.personas
-            : [...prevState.personas, { ...persona, id: personaId }];
-
-          return {
-            personas: personasList,
-            selectedPersona: personasList.find(p => `${p.id}` === personaId) || null,
-            pendingPersonaId: null
-          };
-        });
-      })
-      .catch(error => {
-        console.error('Error resolving pending persona:', error);
-      })
-      .finally(() => {
-        this.pendingPersonaRequestId = null;
-      });
-  };
-
-  private fetchPersonaById = async (personaId: string): Promise<PersonaInfo | null> => {
-    if (!this.props.services?.api) {
-      return null;
     }
 
     try {
-      const response: any = await this.props.services.api.get(`/api/v1/personas/${personaId}`);
-      const personaCandidate: any = response?.persona || response?.data || response;
-      if (personaCandidate && personaCandidate.id) {
-        return {
-          ...personaCandidate,
-          id: `${personaCandidate.id}`
-        } as PersonaInfo;
+      const result = await this.personaResolver.resolvePendingPersona({
+        pendingPersonaId: this.state.pendingPersonaId,
+        showPersonaSelection: this.state.showPersonaSelection,
+        personas: this.state.personas,
+        selectedPersona: this.state.selectedPersona,
+      });
+
+      // Only update if state changed
+      if (result.persona !== this.state.selectedPersona ||
+          result.pendingPersonaId !== this.state.pendingPersonaId ||
+          result.personas !== this.state.personas) {
+        this.setState({
+          selectedPersona: result.persona,
+          pendingPersonaId: result.pendingPersonaId,
+          personas: result.personas,
+        });
       }
     } catch (error) {
-      console.error('Error fetching persona by id:', error);
+      console.error('Error resolving pending persona:', error);
     }
-
-    return null;
   };
 
   /**
