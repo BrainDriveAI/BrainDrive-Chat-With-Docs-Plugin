@@ -40,6 +40,7 @@ import { ConversationLoader } from '../domain/conversations/ConversationLoader';
 import { ConversationManager } from '../domain/conversations/ConversationManager';
 import { PersonaResolver } from '../domain/personas/PersonaResolver';
 import { PageSettingsService } from '../domain/settings/PageSettingsService';
+import { GreetingService } from '../domain/chat/GreetingService';
 import { ModelKeyHelper } from '../utils/ModelKeyHelper';
 
 // Import icons
@@ -217,13 +218,14 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     // Set initialization timeout
     setTimeout(() => {
       if (!this.state.conversation_id) {
-        // Only use persona greeting if persona selection is enabled and a persona is selected
-        // Ensure persona is null when personas are disabled
-        const effectivePersona = this.state.showPersonaSelection ? this.state.selectedPersona : null;
-        const personaGreeting = this.state.showPersonaSelection && effectivePersona?.sample_greeting;
-        const greetingContent = personaGreeting || this.props.initialGreeting;
-        
-        console.log(`🎭 Greeting logic: showPersonaSelection=${this.state.showPersonaSelection}, effectivePersona=${effectivePersona?.name || 'none'}, using=${personaGreeting ? 'persona' : 'default'} greeting`);
+        // Get greeting using GreetingService
+        const greetingContent = GreetingService.getGreeting({
+          showPersonaSelection: this.state.showPersonaSelection,
+          selectedPersona: this.state.selectedPersona,
+          defaultGreeting: this.props.initialGreeting
+        });
+
+        console.log(`🎭 Greeting logic: showPersonaSelection=${this.state.showPersonaSelection}, selectedPersona=${this.state.selectedPersona?.name || 'none'}, using=${GreetingService.shouldUsePersonaGreeting({ showPersonaSelection: this.state.showPersonaSelection, selectedPersona: this.state.selectedPersona }) ? 'persona' : 'default'} greeting`);
         
         if (greetingContent && !this.initialGreetingAdded) {
           this.initialGreetingAdded = true;
@@ -862,12 +864,15 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       pendingPersonaId: null
     }, () => {
       console.log(`✅ New chat started - conversation_id: ${this.state.conversation_id}`);
-      // Only use persona greeting if persona selection is enabled and a persona is selected
-      const personaGreeting = this.state.showPersonaSelection && this.state.selectedPersona?.sample_greeting;
-      const greetingContent = personaGreeting || this.props.initialGreeting;
-      
-      console.log(`🎭 New chat greeting: showPersonaSelection=${this.state.showPersonaSelection}, selectedPersona=${this.state.selectedPersona?.name || 'none'}, using=${personaGreeting ? 'persona' : 'default'} greeting`);
-      
+
+      const greetingContent = GreetingService.getGreeting({
+        showPersonaSelection: this.state.showPersonaSelection,
+        selectedPersona: this.state.selectedPersona,
+        defaultGreeting: this.props.initialGreeting
+      });
+
+      console.log(`🎭 New chat greeting: showPersonaSelection=${this.state.showPersonaSelection}, selectedPersona=${this.state.selectedPersona?.name || 'none'}, using=${GreetingService.shouldUsePersonaGreeting({ showPersonaSelection: this.state.showPersonaSelection, selectedPersona: this.state.selectedPersona }) ? 'persona' : 'default'} greeting`);
+
       if (greetingContent) {
         this.initialGreetingAdded = true;
         this.addMessageToChat({

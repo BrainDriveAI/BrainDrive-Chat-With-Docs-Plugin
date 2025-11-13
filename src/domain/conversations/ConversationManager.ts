@@ -1,6 +1,7 @@
 import type { ConversationInfo, PersonaInfo } from '../../collection-chat-view/chatViewTypes';
 import type { ChatMessage } from '../../braindrive-plugin/pluginTypes';
 import { generateId } from '../../utils';
+import { GreetingService } from '../chat/GreetingService';
 
 /**
  * Options for selecting a conversation
@@ -137,8 +138,11 @@ export class ConversationManager {
 
     // Empty conversationId means "new chat" option selected
     if (!conversationId) {
-      const personaGreeting = showPersonaSelection && selectedPersona?.sample_greeting;
-      const greetingContent = personaGreeting || initialGreeting;
+      const greetingContent = GreetingService.getGreeting({
+        showPersonaSelection,
+        selectedPersona,
+        defaultGreeting: initialGreeting
+      });
 
       return {
         shouldStartNewChat: true,
@@ -307,9 +311,16 @@ export class ConversationManager {
 
       if (wasSelected) {
         // Start new chat with greeting
-        const effectivePersona = showPersonaSelection ? selectedPersona : null;
-        const personaGreeting = showPersonaSelection && effectivePersona?.sample_greeting;
-        const greetingContent = personaGreeting || initialGreeting;
+        const effectivePersona = GreetingService.getEffectivePersona({
+          showPersonaSelection,
+          selectedPersona
+        });
+
+        const greetingContent = GreetingService.getGreeting({
+          showPersonaSelection,
+          selectedPersona,
+          defaultGreeting: initialGreeting
+        });
 
         return {
           stateUpdate: {
