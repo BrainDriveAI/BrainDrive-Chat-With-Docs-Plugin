@@ -37,6 +37,7 @@ import { UserRepository } from '../domain/users/UserRepository';
 import { ConversationRepository } from '../domain/conversations/ConversationRepository';
 import { ChatScrollManager } from '../domain/ui/ChatScrollManager';
 import { ConversationLoader } from '../domain/conversations/ConversationLoader';
+import { ConversationManager } from '../domain/conversations/ConversationManager';
 import { PersonaResolver } from '../domain/personas/PersonaResolver';
 import { PageSettingsService } from '../domain/settings/PageSettingsService';
 import { ModelKeyHelper } from '../utils/ModelKeyHelper';
@@ -60,6 +61,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private userRepository: UserRepository | null = null;
   private conversationRepository: ConversationRepository | null = null;
   private conversationLoader: ConversationLoader | null = null;
+  private conversationManager: ConversationManager | null = null;
   private personaResolver: PersonaResolver | null = null;
   private pageSettingsService: PageSettingsService | null = null;
   private currentStreamingAbortController: AbortController | null = null;
@@ -166,6 +168,15 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     if (props.services.api) {
       this.personaResolver = new PersonaResolver({
         api: props.services.api,
+      });
+    }
+
+    // Initialize ConversationManager
+    if (props.services.api) {
+      this.conversationManager = new ConversationManager({
+        api: props.services.api,
+        addMessageToChat: this.addMessageToChat,
+        loadConversationWithPersona: this.loadConversationWithPersona,
       });
     }
 
@@ -786,27 +797,30 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Handle conversation selection
    */
   handleConversationSelect = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    if (!this.conversationManager) return;
+
     const conversationId = event.target.value;
-    
-    console.log(`📋 Conversation selected: ${conversationId || 'new chat'}`);
-    
-    if (!conversationId) {
-      // New chat selected
-      this.handleNewChatClick();
-      return;
-    }
-    
-    const selectedConversation = this.state.conversations.find(
-      conv => conv.id === conversationId
-    );
-    
-    if (selectedConversation) {
-      console.log(`📂 Loading conversation: ${conversationId}`);
-      this.setState({ selectedConversation }, () => {
-        // Use the new persona-aware conversation loading method
-        this.loadConversationWithPersona(conversationId);
-      });
-    }
+    const result = this.conversationManager.handleConversationSelect({
+      conversationId,
+      conversations: this.state.conversations,
+      selectedPersona: this.state.selectedPersona,
+      showPersonaSelection: this.state.showPersonaSelection,
+      initialGreeting: this.props.initialGreeting
+    });
+
+    this.setState(result.stateUpdate as any, () => {
+      if (result.shouldStartNewChat && result.greetingContent) {
+        this.initialGreetingAdded = true;
+        this.addMessageToChat({
+          id: generateId('greeting'),
+          sender: 'ai',
+          content: result.greetingContent,
+          timestamp: new Date().toISOString()
+        });
+      } else if (result.shouldLoadConversation && result.conversationIdToLoad) {
+        this.loadConversationWithPersona(result.conversationIdToLoad);
+      }
+    });
   };
 
   /**
@@ -884,44 +898,17 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Handle renaming a conversation
    */
   handleRenameConversation = async (conversationId: string, newTitle?: string) => {
-    // Close menu first
-    this.setState({ openConversationMenu: null });
-    
-    if (!newTitle) {
-      const conversation = this.state.conversations.find(c => c.id === conversationId);
-      const promptResult = prompt('Enter new name:', conversation?.title || 'Untitled');
-      if (!promptResult) return; // User cancelled
-      newTitle = promptResult;
-    }
-    
-    if (!this.props.services?.api) {
-      throw new Error('API service not available');
-    }
+    if (!this.conversationManager) return;
 
     try {
-      await this.props.services.api.put(
-        `/api/v1/conversations/${conversationId}`,
-        { title: newTitle }
-      );
-
-      // Update the conversation in state
-      this.setState(prevState => {
-        const updatedConversations = prevState.conversations.map(conv =>
-          conv.id === conversationId
-            ? { ...conv, title: newTitle }
-            : conv
-        );
-
-        const updatedSelectedConversation = prevState.selectedConversation?.id === conversationId
-          ? { ...prevState.selectedConversation, title: newTitle }
-          : prevState.selectedConversation;
-
-        return {
-          conversations: updatedConversations,
-          selectedConversation: updatedSelectedConversation
-        };
+      const result = await this.conversationManager.handleRenameConversation({
+        conversationId,
+        newTitle,
+        conversations: this.state.conversations,
+        selectedConversation: this.state.selectedConversation
       });
 
+      this.setState(result.stateUpdate as any);
     } catch (error: any) {
       throw new Error(`Error renaming conversation: ${error.message || 'Unknown error'}`);
     }
@@ -931,107 +918,53 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
    * Toggle conversation menu
    */
   toggleConversationMenu = (conversationId: string, event?: React.MouseEvent<HTMLButtonElement>) => {
-    console.log('🔍 toggleConversationMenu called:', { conversationId, hasEvent: !!event });
-    
-    const isOpening = this.state.openConversationMenu !== conversationId;
-    console.log('🔍 isOpening:', isOpening);
-    
-    if (isOpening) {
-      // Simple toggle - CSS handles all positioning
-      this.setState({
-        openConversationMenu: conversationId
-      }, () => {
-        console.log('🔍 Menu opened for conversation:', conversationId);
-      });
-    } else {
-      console.log('🔍 Closing menu');
-      this.setState({
-        openConversationMenu: null
-      });
-    }
+    if (!this.conversationManager) return;
+
+    const result = this.conversationManager.toggleConversationMenu({
+      conversationId,
+      currentOpenMenu: this.state.openConversationMenu
+    });
+
+    this.setState(result.stateUpdate as any);
   };
 
   /**
    * Handle sharing a conversation
    */
   handleShareConversation = async (conversationId: string) => {
-    // Close menu
-    this.setState({ openConversationMenu: null });
-    
-    // For now, just copy the conversation URL to clipboard
-    try {
-      const url = `${window.location.origin}${window.location.pathname}?conversation=${conversationId}`;
-      await navigator.clipboard.writeText(url);
-      
-      // Show a temporary success message
-      this.addMessageToChat({
-        id: generateId('share-success'),
-        sender: 'ai',
-        content: '📋 Conversation link copied to clipboard!',
-        timestamp: new Date().toISOString()
-      });
-    } catch (error) {
-      this.addMessageToChat({
-        id: generateId('share-error'),
-        sender: 'ai',
-        content: '❌ Failed to copy conversation link',
-        timestamp: new Date().toISOString()
-      });
-    }
+    if (!this.conversationManager) return;
+
+    const result = await this.conversationManager.handleShareConversation(conversationId);
+    this.setState(result.stateUpdate as any);
   };
 
   /**
    * Handle deleting a conversation
    */
   handleDeleteConversation = async (conversationId: string) => {
-    // Close menu first
-    this.setState({ openConversationMenu: null });
-    
-    if (!this.props.services?.api) {
-      throw new Error('API service not available');
-    }
+    if (!this.conversationManager) return;
 
     try {
-      await this.props.services.api.delete(`/api/v1/conversations/${conversationId}`);
-
-      // Update state to remove the conversation
-      this.setState(prevState => {
-        const updatedConversations = prevState.conversations.filter(
-          conv => conv.id !== conversationId
-        );
-
-        // If the deleted conversation was selected, clear selection and start new chat
-        const wasSelected = prevState.selectedConversation?.id === conversationId;
-
-        return {
-          conversations: updatedConversations,
-          selectedConversation: wasSelected ? null : prevState.selectedConversation,
-          conversation_id: wasSelected ? null : prevState.conversation_id,
-          messages: wasSelected ? [] : prevState.messages,
-          // Reset persona to null when starting new chat (respects persona toggle state)
-          selectedPersona: wasSelected ? (prevState.showPersonaSelection ? prevState.selectedPersona : null) : prevState.selectedPersona
-        };
-      }, () => {
-        // If we deleted the selected conversation, add greeting if available
-        if (this.state.selectedConversation === null) {
-          // Only use persona greeting if persona selection is enabled and a persona is selected
-          // Ensure persona is null when personas are disabled
-          const effectivePersona = this.state.showPersonaSelection ? this.state.selectedPersona : null;
-          const greetingContent = (this.state.showPersonaSelection && effectivePersona?.sample_greeting) 
-            || this.props.initialGreeting;
-          
-          if (greetingContent) {
-            this.initialGreetingAdded = true;
-            this.addMessageToChat({
-              id: generateId('greeting'),
-              sender: 'ai',
-              content: greetingContent,
-              timestamp: new Date().toISOString()
-            });
-          }
-        }
+      const result = await this.conversationManager.handleDeleteConversation({
+        conversationId,
+        conversations: this.state.conversations,
+        selectedConversation: this.state.selectedConversation,
+        showPersonaSelection: this.state.showPersonaSelection,
+        selectedPersona: this.state.selectedPersona,
+        initialGreeting: this.props.initialGreeting
       });
 
+      this.setState(result.stateUpdate as any, () => {
+        if (result.greetingContent) {
+          this.initialGreetingAdded = true;
+          this.addMessageToChat({
+            id: generateId('greeting'),
+            sender: 'ai',
+            content: result.greetingContent,
+            timestamp: new Date().toISOString()
+          });
+        }
+      });
     } catch (error: any) {
       throw new Error(`Error deleting conversation: ${error.message || 'Unknown error'}`);
     }
