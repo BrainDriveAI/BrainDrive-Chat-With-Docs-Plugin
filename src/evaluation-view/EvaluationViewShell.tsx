@@ -21,6 +21,7 @@ import { ToastContainer, ToastManager } from './components/Toast';
 import { Alert, AlertDescription } from '../components/ui/alert';
 import { Button } from '../components/ui/button';
 import { ModelConfigLoader, FallbackModelSelector } from '../domain/models';
+import { PersonaResolver } from '../domain/personas/PersonaResolver';
 import './EvaluationView.css';
 
 interface EvaluationViewProps {
@@ -67,6 +68,7 @@ export class EvaluationViewShell extends React.Component<
   private aiService: AIService;
   private modelConfigLoader: ModelConfigLoader | null = null;
   private modelSelector: FallbackModelSelector;
+  private personaResolver: PersonaResolver | null = null;
 
   constructor(props: EvaluationViewProps) {
     super(props);
@@ -78,6 +80,11 @@ export class EvaluationViewShell extends React.Component<
       this.modelConfigLoader = new ModelConfigLoader(props.services.api);
     }
     this.modelSelector = new FallbackModelSelector();
+
+    // Initialize PersonaResolver
+    if (props.services.api) {
+      this.personaResolver = new PersonaResolver({ api: props.services.api });
+    }
 
     this.state = {
       ...initialState,
@@ -228,19 +235,18 @@ export class EvaluationViewShell extends React.Component<
   };
 
   /**
-   * Load personas from /api/v1/personas
+   * Load personas (delegates to PersonaResolver)
    */
   loadPersonas = async () => {
-    this.setState({ isLoadingPersonas: true });
-
-    if (!this.props.services?.api) {
+    if (!this.personaResolver) {
       this.setState({ isLoadingPersonas: false });
       return;
     }
 
+    this.setState({ isLoadingPersonas: true });
+
     try {
-      const response: any = await this.props.services.api.get('/api/v1/personas');
-      const personas = response.personas || [];
+      const personas = await this.personaResolver.loadPersonas();
       this.setState({
         availablePersonas: personas,
         isLoadingPersonas: false,
