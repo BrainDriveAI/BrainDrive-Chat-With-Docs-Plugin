@@ -65,7 +65,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
   private personaResolver: PersonaResolver | null = null;
   private pageSettingsService: PageSettingsService | null = null;
   private currentStreamingAbortController: AbortController | null = null;
-  private menuButtonRef: HTMLButtonElement | null = null;
   private scrollManager: ChatScrollManager;
 
   constructor(props: CollectionChatProps) {
@@ -704,19 +703,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
     this.props.services.event.sendMessage('ai-prompt-chat', modelInfo.content);
   };
 
-  private getModelKey(modelName?: string | null, serverName?: string | null) {
-    const safeModel = (modelName || '').trim();
-    const safeServer = (serverName || '').trim();
-    return `${safeServer}:::${safeModel}`;
-  }
-
-  private getModelKeyFromInfo(model: ModelInfo | null) {
-    if (!model) {
-      return '';
-    }
-    return this.getModelKey(model.name, model.serverName);
-  }
-
   private resolvePendingModelSelection = () => {
     const { pendingModelKey, models, selectedModel, pendingModelSnapshot } = this.state;
 
@@ -727,10 +713,10 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       return;
     }
 
-    const matchingModel = models.find(model => this.getModelKeyFromInfo(model) === pendingModelKey);
+    const matchingModel = models.find(model => ModelKeyHelper.getModelKey(model.name, model.serverName) === pendingModelKey);
 
     if (matchingModel) {
-      const selectedKey = this.getModelKeyFromInfo(selectedModel);
+      const selectedKey = ModelKeyHelper.getModelKey(selectedModel?.name, selectedModel?.serverName);
       const isSameKey = selectedKey === pendingModelKey;
       const selectedIsTemporary = Boolean(selectedModel?.isTemporary);
       const matchingIsTemporary = Boolean(matchingModel.isTemporary);
@@ -755,7 +741,7 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
       return;
     }
 
-    if (pendingModelSnapshot && !models.some(model => this.getModelKeyFromInfo(model) === pendingModelKey)) {
+    if (pendingModelSnapshot && !models.some(model => ModelKeyHelper.getModelKey(model.name, model.serverName) === pendingModelKey)) {
       this.setState(prevState => ({
         models: [...prevState.models, pendingModelSnapshot]
       }));
@@ -1935,14 +1921,6 @@ export class CollectionChatViewShell extends React.Component<CollectionChatProps
               </div>
               
               
-              {/* Chat input area */}
-              {/* <div className="chat-input-container">
-                <div className="chat-input-wrapper">
-                  <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
-                      <ChatInput />
-                  </div>
-                </div>
-              </div> */}
                 <ChatInput
                   inputText={inputText}
                   isLoading={isLoading}
