@@ -39,14 +39,14 @@ export const StatusFilter: React.FC<StatusFilterProps> = ({
 
   return (
     <div className="flex items-center gap-2">
-      <label htmlFor="status-filter" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label htmlFor="status-filter" className="text-sm font-medium eval-table-cell">
         Status:
       </label>
       <select
         id="status-filter"
         value={currentStatus}
         onChange={(e) => onStatusChange(e.target.value as StatusFilterValue)}
-        className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+        className="rounded-md eval-input shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
       >
         <option value="all">{formatLabel('all')}</option>
         <option value="pending">{formatLabel('pending')}</option>

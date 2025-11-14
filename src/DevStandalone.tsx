@@ -212,7 +212,7 @@ const componentSettings: SettingsService = {};
 
 const userId = "926a985d60a74eacb0a674195a5d9c8c";
 
-const authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MjZhOTg1ZDYwYTc0ZWFjYjBhNjc0MTk1YTVkOWM4YyIsImlhdCI6MTc2MjkxMDI2Mi4xNTg2NzksImV4cCI6MTc2MjkzOTA2Mi4xNTg2Nzl9.J9DEvqXV2UQ3TD-U-ckdA3IROMu-Q0uoau5OyXOQIfU";
+const authToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5MjZhOTg1ZDYwYTc0ZWFjYjBhNjc0MTk1YTVkOWM4YyIsImlhdCI6MTc2MzA5NDE5NC42OTQyNCwiZXhwIjoxNzYzMTIyOTk0LjY5NTI0fQ.n5Bmc079NdgfIEB-SJ86hBU5eVXXphiZEY-XJrpyEik";
 
 
 function makeRequestUrl(endpoint: string) {

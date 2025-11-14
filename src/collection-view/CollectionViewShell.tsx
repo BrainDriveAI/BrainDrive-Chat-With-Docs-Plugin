@@ -82,18 +82,21 @@ export class CollectionViewShell extends React.Component<CollectionsViewProps, C
             <div>
                 <div className="flex justify-between items-center mb-6">
                     <div className="px-4 sm:px-6">
-                        <h2 className="text-lg leading-6 font-medium dark:text-gray-100">Your Collections</h2>
-                        <p className="max-w-2xl text-sm dark:text-gray-400">Organize your documents into collections for better management</p>
+                        <h2 className="text-lg leading-6 font-medium collection-item-title">Your Collections</h2>
+                        <p className="max-w-2xl text-sm collection-item-description">Organize your documents into collections for better management</p>
                     </div>
                     <div className="flex items-center space-x-4">
-                        <CollectionViewModeToggle 
+                        <CollectionViewModeToggle
                             currentViewMode={currentViewMode}
                             onViewModeChange={handleViewModeChange}
                         />
-                        
+
                         <button
                             onClick={handleToggleCreateForm}
-                            className="bg-blue-500 hover:bg-blue-700 dark:bg-blue-600 dark:hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center text-sm"
+                            className="text-white px-4 py-2 rounded-lg transition-colors flex items-center text-sm"
+                            style={{ backgroundColor: 'var(--button-primary-bg)' }}
+                            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
                         >
                             <Plus className="h-4 w-4 mr-2" />
                             New Collection

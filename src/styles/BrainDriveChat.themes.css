@@ -1,24 +1,67 @@
 /* Dark theme variables */
 .dark-theme {
+  /* Background colors */
   --bg-color: #121a28;
   --paper-bg: #1a2332;
+  --secondary-bg: #1f2937;
+  --tertiary-bg: #111827;
+
+  /* Text colors */
   --text-color: #e0e0e0;
+  --text-secondary: #b0b0b0;
+  --text-muted: #808080;
+
+  /* Border and interaction */
   --border-color: rgba(255, 255, 255, 0.1);
   --hover-color: rgba(255, 255, 255, 0.1);
+  --active-bg: rgba(255, 255, 255, 0.15);
+
+  /* Input fields */
   --input-bg: #1e293b;
+  --input-border: rgba(255, 255, 255, 0.2);
+  --input-focus-border: #2196f3;
+
+  /* Buttons */
   --button-primary-bg: #2196f3;
   --button-primary-text: #ffffff;
   --button-secondary-bg: #2c3a4f;
   --button-secondary-text: #ffffff;
   --button-danger-bg: #f44336;
   --button-danger-text: #ffffff;
+
+  /* Status colors */
   --status-success-color: #4caf50;
   --status-error-color: #f44336;
   --status-checking-color: #ff9800;
+  --status-processing-bg: rgba(254, 243, 199, 0.15);
+  --status-processing-text: #fbbf24;
+  --status-success-bg: rgba(209, 250, 229, 0.15);
+  --status-success-text: #34d399;
+  --status-error-bg: rgba(254, 226, 226, 0.15);
+  --status-error-text: #fca5a5;
+
+  /* Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
   --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6);
+
+  /* Cards */
+  --card-bg: #1e1e1e;
+  --card-border: #374151;
+  --card-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+  /* Modals and overlays */
+  --modal-backdrop: rgba(37, 36, 69, 0.7);
+  --modal-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+
+  /* Error and info banners */
+  --error-bg: #450a0a;
+  --error-text: #fecaca;
+  --error-border: #dc2626;
+  --info-bg: #0b1220;
+  --info-border: #3b82f6;
+  --info-text: #93c5fd;
 }
 
 /* Dark theme adjustments for icons */

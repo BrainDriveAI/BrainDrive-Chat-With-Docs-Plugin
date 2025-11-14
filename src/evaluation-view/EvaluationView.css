@@ -291,6 +291,119 @@
   font-size: 0.95rem;
 }
 
+/* Stats Cards */
+
+.eval-stats-card {
+  background-color: var(--card-bg);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.eval-stats-label {
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
+}
+
+.eval-stats-value {
+  color: var(--text-color);
+  transition: color 0.3s ease;
+}
+
+/* Table Rows */
+
+.eval-table-row {
+  background-color: var(--card-bg);
+  border-color: var(--border-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.eval-table-row:hover {
+  background-color: var(--hover-color);
+}
+
+.eval-table-cell {
+  color: var(--text-color);
+  transition: color 0.3s ease;
+}
+
+.eval-table-cell-secondary {
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
+}
+
+/* Filter Controls */
+
+.eval-input {
+  background-color: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.eval-input::placeholder {
+  color: var(--text-muted);
+}
+
+.eval-input:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+}
+
+/* Result Items */
+
+.eval-result-item {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.eval-result-header {
+  background-color: var(--secondary-bg);
+  transition: background-color 0.3s ease;
+}
+
+.eval-result-content {
+  background-color: var(--tertiary-bg);
+  color: var(--text-secondary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Tabs */
+
+.eval-tab {
+  color: var(--text-muted);
+  border-color: transparent;
+  transition: color 0.3s ease, border-color 0.3s ease;
+}
+
+.eval-tab:hover {
+  color: var(--text-secondary);
+  border-color: var(--border-color);
+}
+
+.eval-tab-active {
+  color: var(--button-primary-bg);
+  border-color: var(--button-primary-bg);
+}
+
+/* Status Filter Buttons */
+
+.eval-filter-btn {
+  background-color: var(--tertiary-bg);
+  color: var(--text-secondary);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.eval-filter-btn:hover {
+  background-color: var(--hover-color);
+  color: var(--text-color);
+}
+
+.eval-filter-btn-active {
+  background-color: var(--button-primary-bg);
+  color: var(--button-primary-text);
+}
+
 /* Responsive */
 
 @media (max-width: 768px) {

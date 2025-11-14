@@ -38,13 +38,13 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
       : 'text-red-500';
 
     const badgeClass = result.judge_correct
-      ? 'bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200'
-      : 'bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200';
+      ? 'bg-green-100 text-green-800 dark-theme:bg-green-900 dark-theme:text-green-200'
+      : 'bg-red-100 text-red-800 dark-theme:bg-red-900 dark-theme:text-red-200';
 
     return (
-    <div className={`border-l-4 ${borderColor}`}>
+    <div className={`eval-result-item border-l-4 ${borderColor}`}>
       <div
-        className="px-4 py-4 sm:px-6 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+        className="eval-result-header px-4 py-4 sm:px-6 cursor-pointer"
         onClick={onToggle}
       >
         <div className="flex items-center justify-between">
@@ -55,11 +55,11 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
               ) : (
                 <XCircle className={`h-5 w-5 ${iconColor} mr-2`} />
               )}
-              <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
+              <p className="text-sm font-medium eval-table-cell truncate">
                 {result.question}
               </p>
             </div>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            <p className="mt-1 text-xs eval-table-cell-secondary">
               Test Case: {result.test_case_id}
             </p>
           </div>
@@ -73,29 +73,29 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
         </div>
       </div>
       {isExpanded && (
-        <div className="px-4 py-4 sm:px-6 bg-gray-50 dark:bg-gray-900">
+        <div className="px-4 py-4 sm:px-6 eval-result-content">
           <div className="space-y-4">
             {/* Question */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              <h4 className="text-sm font-medium eval-table-cell mb-2">
                 Question
               </h4>
-              <p className="text-sm text-gray-700 dark:text-gray-300">{result.question}</p>
+              <p className="text-sm eval-table-cell">{result.question}</p>
             </div>
 
             {/* LLM Answer */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              <h4 className="text-sm font-medium eval-table-cell mb-2">
                 LLM Answer
               </h4>
-              <div className="text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 rounded p-3 border border-gray-200 dark:border-gray-700">
+              <div className="text-sm eval-table-cell eval-stats-card rounded p-3 border eval-table-row">
                 {result.llm_answer}
               </div>
             </div>
 
             {/* Judge Verdict */}
             <div>
-              <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+              <h4 className="text-sm font-medium eval-table-cell mb-2">
                 Judge Verdict
               </h4>
               <div className="flex items-start">
@@ -103,7 +103,7 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
                   {result.judge_correct ? 'Correct' : 'Incorrect'}
                 </span>
               </div>
-              <p className="mt-2 text-sm text-gray-700 dark:text-gray-300">
+              <p className="mt-2 text-sm eval-table-cell">
                 {result.judge_reasoning}
               </p>
             </div>
@@ -111,10 +111,10 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
             {/* Factual Errors */}
             {result.judge_factual_errors && result.judge_factual_errors.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-red-600 dark:text-red-400 mb-2">
+                <h4 className="text-sm font-medium text-red-600 dark-theme:text-red-400 mb-2">
                   Factual Errors
                 </h4>
-                <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                <ul className="list-disc list-inside text-sm eval-table-cell space-y-1">
                   {result.judge_factual_errors.map((error, idx) => (
                     <li key={idx}>{error}</li>
                   ))}
@@ -125,10 +125,10 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
             {/* Missing Information */}
             {result.judge_missing_info && result.judge_missing_info.length > 0 && (
               <div>
-                <h4 className="text-sm font-medium text-yellow-600 dark:text-yellow-400 mb-2">
+                <h4 className="text-sm font-medium text-yellow-600 dark-theme:text-yellow-400 mb-2">
                   Missing Information
                 </h4>
-                <ul className="list-disc list-inside text-sm text-gray-700 dark:text-gray-300 space-y-1">
+                <ul className="list-disc list-inside text-sm eval-table-cell space-y-1">
                   {result.judge_missing_info.map((info, idx) => (
                     <li key={idx}>{info}</li>
                   ))}
@@ -140,13 +140,13 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
             <div>
               <button
                 onClick={this.handleToggleContext}
-                className="text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline flex items-center"
+                className="text-sm font-medium text-blue-600 dark-theme:text-blue-400 hover:underline flex items-center"
               >
                 <FileText className="h-4 w-4 mr-1" />
                 {showContext ? 'Hide' : 'View'} Retrieved Context
               </button>
               {showContext && (
-                <div className="mt-2 text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 rounded p-3 border border-gray-200 dark:border-gray-700 max-h-64 overflow-y-auto">
+                <div className="mt-2 text-sm eval-table-cell eval-stats-card rounded p-3 border eval-table-row max-h-64 overflow-y-auto">
                   <pre className="whitespace-pre-wrap">{result.retrieved_context}</pre>
                 </div>
               )}
@@ -155,10 +155,10 @@ export class ResultItem extends React.Component<ResultItemProps, ResultItemState
             {/* Ground Truth */}
             {result.ground_truth && (
               <div>
-                <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-2">
+                <h4 className="text-sm font-medium eval-table-cell mb-2">
                   Expected Answer (Ground Truth)
                 </h4>
-                <p className="text-sm text-gray-700 dark:text-gray-300">{result.ground_truth}</p>
+                <p className="text-sm eval-table-cell">{result.ground_truth}</p>
               </div>
             )}
           </div>

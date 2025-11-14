@@ -144,7 +144,7 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
         const areServicesReady = this.pluginService.areServicesReady(); 
 
         return (
-            <div className="chat-collections-plugin-content dark:bg-gray-900">
+            <div className="chat-collections-plugin-content plugin-content-bg">
                 {/* Header */}
                 <PluginHeader
                     pluginService={this.pluginService}
