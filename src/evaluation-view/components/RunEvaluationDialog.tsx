@@ -178,6 +178,7 @@ interface RunEvaluationDialogState {
   selectedPersonaId: string;
   selectedCollectionId: string;
   questions: string;
+  modelSearchQuery: string;
   validationErrors: {
     questions?: string;
   };
@@ -194,6 +195,7 @@ export class RunEvaluationDialog extends React.Component<
       selectedPersonaId: 'none',
       selectedCollectionId: '',
       questions: '',
+      modelSearchQuery: '',
       validationErrors: {},
     };
   }
@@ -289,6 +291,26 @@ export class RunEvaluationDialog extends React.Component<
     });
   };
 
+  handleModelSearchChange = (query: string) => {
+    this.setState({ modelSearchQuery: query });
+  };
+
+  getFilteredModels = (): ModelInfo[] => {
+    const { availableModels } = this.props;
+    const { modelSearchQuery } = this.state;
+
+    if (!modelSearchQuery.trim()) {
+      return availableModels;
+    }
+
+    const query = modelSearchQuery.toLowerCase();
+    return availableModels.filter((model) => {
+      const modelName = model.name.toLowerCase();
+      const serverName = model.serverName.toLowerCase();
+      return modelName.includes(query) || serverName.includes(query);
+    });
+  };
+
   isDarkMode = (): boolean => {
     return document.querySelector('.dark') !== null;
   };
@@ -308,9 +330,11 @@ export class RunEvaluationDialog extends React.Component<
       selectedPersonaId,
       selectedCollectionId,
       questions,
+      modelSearchQuery,
       validationErrors,
     } = this.state;
 
+    const filteredModels = this.getFilteredModels();
     const canSubmit = selectedModelKey && selectedCollectionId && questions.trim() && !isLoadingModels;
     const isDark = this.isDarkMode();
 
@@ -359,15 +383,28 @@ export class RunEvaluationDialog extends React.Component<
                       })()}
                     </SelectValue>
                   </SelectTrigger>
-                  <SelectContent>
-                    {availableModels.map((model) => {
-                      const key = this.getModelKey(model);
-                      return (
-                        <SelectItem key={key} value={key}>
-                          {model.name} ({model.serverName})
-                        </SelectItem>
-                      );
-                    })}
+                  <SelectContent
+                    searchable={availableModels.length > 1}
+                    searchPlaceholder="Search models..."
+                    onSearchChange={this.handleModelSearchChange}
+                  >
+                    {filteredModels.length === 0 ? (
+                      <div
+                        className="px-2 py-1.5 text-sm text-center"
+                        style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
+                      >
+                        No models found
+                      </div>
+                    ) : (
+                      filteredModels.map((model) => {
+                        const key = this.getModelKey(model);
+                        return (
+                          <SelectItem key={key} value={key}>
+                            {model.name} ({model.serverName})
+                          </SelectItem>
+                        );
+                      })
+                    )}
                   </SelectContent>
                 </Select>
               )}
