@@ -30,6 +30,7 @@ grep -r "keyword" docs/integrations/
 ```
 docs/
 ├── README.md                    # This file
+├── OWNERS-MANUAL.md            # Complete user/admin/developer manual
 ├── AI-AGENT-GUIDE.md           # Comprehensive guide for AI coding agents
 │
 ├── decisions/                   # Architecture Decision Records (ADRs)
@@ -186,12 +187,15 @@ Contains:
 
 ### Onboarding Checklist
 
-New to project? Read in this order:
+**New User/Administrator?**
+1. **Start here:** `OWNERS-MANUAL.md` - Complete user, admin, and setup guide
+2. Quick start, troubleshooting, configuration, and maintenance
 
-1. **Start here:** `docs/AI-AGENT-GUIDE.md` (overview)
+**New Developer?**
+1. **Start here:** `AI-AGENT-GUIDE.md` - Development workflow overview
 2. **Architecture:** Read all ADRs in `decisions/`
 3. **Gotchas:** Read all data quirks
-4. **Integrations:** Understand external dependencies
+4. **Backend Systems:** Understand 3-backend architecture in `integrations/`
 5. **Main docs:** `../FOR-AI-CODING-AGENTS.md` and `../README.md`
 
 ### Contributing Documentation
