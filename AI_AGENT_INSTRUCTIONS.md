@@ -599,7 +599,7 @@ Update this after each extraction:
 ## 🎯 When Phase 6 is Complete
 
 ### Next Steps:
-1. Update `REFACTORING_TODO_PLAN.md` - mark Phase 6 complete
+1. Document major refactoring decisions in `docs/decisions/` as ADRs
 2. Review extracted services for consolidation opportunities
 3. Consider Phase 7 (if defined in plan) or Phase 2/4 (RAG/Chat domain logic)
 4. Create PR for review with summary of changes
@@ -618,6 +618,6 @@ If you're stuck or need clarification:
 1. Check existing extracted services for patterns
 2. Read test files to understand expected behavior
 3. Review git history: `git log --grep="Phase 5"`
-4. Refer to CLAUDE.md for project-specific conventions
+4. Refer to FOR-AI-CODING-AGENTS.md for project-specific conventions
 
 **Remember**: Take it one extraction at a time. Test-driven, atomic commits, keep it clean! 🚀

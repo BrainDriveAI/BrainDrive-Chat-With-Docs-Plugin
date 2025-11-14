@@ -146,23 +146,41 @@ Settings are accessible via the plugin gear icon in BrainDrive. Defaults:
 - View and delete documents
 - Processing status indicators
 
+## For AI Coding Agents
+
+**Primary documentation:** `FOR-AI-CODING-AGENTS.md` - Complete instructions for AI agents working on this codebase.
+
+**Knowledge base:** `docs/` directory contains:
+- Architecture Decision Records (ADRs) - Why decisions were made
+- Data Quirks - Non-obvious behavior patterns
+- Integration Docs - External system gotchas
+- AI Agent Guide - Project-specific context
+
+**Before implementing features:**
+```bash
+# Search existing knowledge to avoid repeating mistakes
+grep -r "keyword" docs/decisions/
+grep -r "keyword" docs/data-quirks/
+```
+
+**See:** `docs/AI-AGENT-GUIDE.md` for comprehensive guide.
+
+---
+
 ## Contributing
 
 ### Getting Started
-1. Start with standalone mode to familiarize yourself with the UI
-2. Review the service classes to understand data flow
-3. Make small changes first (styles, messages, minor fixes)
+1. **Read:** `docs/README.md` for architecture decisions and common pitfalls
+2. Start with standalone mode to familiarize with UI
+3. Review service classes to understand data flow
+4. Make small changes first (styles, messages, minor fixes)
 
 ### Code Guidelines
 - Follow existing patterns (services for logic, components for UI)
-- Use BrainDrive utility CSS classes for styling consistency
+- **Check `docs/decisions/` before making architectural changes**
+- Use BrainDrive utility CSS classes for styling
 - Test in both standalone and integrated modes
-- Check browser console for debug logs
-
-### Helpful Resources
-- BrainDrive community forum for discussions
-- GitHub issues for bugs/features
-- Inline code comments for complex logic
+- **Document non-obvious behavior in `docs/data-quirks/`**
 
 ## Common Issues
 
