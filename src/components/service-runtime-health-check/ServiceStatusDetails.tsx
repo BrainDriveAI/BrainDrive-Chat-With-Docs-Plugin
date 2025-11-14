@@ -15,38 +15,41 @@ interface ServiceStatusDetailsProps {
   onRefresh: () => void;
 }
 
-export const ServiceStatusDetails: React.FC<ServiceStatusDetailsProps> = ({ 
-  serviceStatuses, 
-  onClose, 
-  onRefresh 
+export const ServiceStatusDetails: React.FC<ServiceStatusDetailsProps> = ({
+  serviceStatuses,
+  onClose,
+  onRefresh
 }) => (
-  <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border z-50">
+  <div className="absolute right-0 mt-2 w-80 rounded-lg shadow-lg border z-50" style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--border-color)' }}>
     <div className="p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="font-semibold text-gray-900">Service Status</h3>
+        <h3 className="font-semibold" style={{ color: 'var(--text-color)' }}>Service Status</h3>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-gray-600 text-xl leading-none"
+          className="text-xl leading-none"
+          style={{ color: 'var(--text-muted)' }}
+          onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
+          onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-muted)'}
           aria-label="Close"
         >
           ×
         </button>
       </div>
-      
+
       <div className="space-y-3">
         {serviceStatuses.map((service, index) => (
-          <div key={index} className="flex items-start justify-between pb-3 border-b last:border-b-0">
+          <div key={index} className="flex items-start justify-between pb-3 border-b last:border-b-0" style={{ borderColor: 'var(--border-color)' }}>
             <div className="flex-1">
-              <p className="text-sm font-medium text-gray-700">
+              <p className="text-sm font-medium" style={{ color: 'var(--text-secondary)' }}>
                 {service.name.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
               </p>
               {service.lastChecked && (
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>
                   Last checked: {service.lastChecked.toLocaleTimeString()}
                 </p>
               )}
               {service.error && (
-                <p className="text-xs text-red-500 mt-1">{service.error}</p>
+                <p className="text-xs mt-1" style={{ color: 'var(--error-text)' }}>{service.error}</p>
               )}
             </div>
             <div className="ml-3">
@@ -63,10 +66,13 @@ export const ServiceStatusDetails: React.FC<ServiceStatusDetailsProps> = ({
           </div>
         ))}
       </div>
-      
+
       <button
         onClick={onRefresh}
-        className="w-full mt-3 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium"
+        className="w-full mt-3 px-4 py-2 rounded-lg transition-colors text-sm font-medium"
+        style={{ backgroundColor: 'var(--button-primary-bg)', color: 'var(--button-primary-text)' }}
+        onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+        onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
       >
         Refresh Status
       </button>

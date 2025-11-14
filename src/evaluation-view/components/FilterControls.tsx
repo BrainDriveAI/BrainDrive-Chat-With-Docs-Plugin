@@ -14,7 +14,7 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
   onFilterChange,
 }) => {
   return (
-    <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-4 mb-6">
+    <div className="eval-stats-card shadow rounded-lg p-4 mb-6">
       <div className="flex flex-row items-center gap-4">
         <div className="flex-1">
           <input
@@ -22,14 +22,14 @@ export const FilterControls: React.FC<FilterControlsProps> = ({
             placeholder="Search questions..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            className="w-full rounded-md eval-input shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
           />
         </div>
         <div>
           <select
             value={correctnessFilter}
             onChange={(e) => onFilterChange(e.target.value as 'all' | 'correct' | 'incorrect')}
-            className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
+            className="rounded-md eval-input shadow-sm focus:border-blue-500 focus:ring-blue-500 px-3 py-2"
           >
             <option value="all">All Results</option>
             <option value="correct">Correct Only</option>

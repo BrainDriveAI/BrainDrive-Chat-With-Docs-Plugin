@@ -29,7 +29,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
   return (
     <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4 mb-8">
       {/* Latest Accuracy */}
-      <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+      <div className="eval-stats-card overflow-hidden shadow rounded-lg">
         <div className="p-5">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -37,10 +37,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                <dt className="eval-stats-label text-sm font-medium truncate">
                   Latest Accuracy
                 </dt>
-                <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                <dd className="eval-stats-value text-lg font-medium">
                   {stats.accuracy.toFixed(1)}%
                 </dd>
               </dl>
@@ -50,7 +50,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
       </div>
 
       {/* Correct Answers */}
-      <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+      <div className="eval-stats-card overflow-hidden shadow rounded-lg">
         <div className="p-5">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -58,10 +58,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                <dt className="eval-stats-label text-sm font-medium truncate">
                   Correct Answers
                 </dt>
-                <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                <dd className="eval-stats-value text-lg font-medium">
                   {stats.correctCount} / {stats.totalQuestions}
                 </dd>
               </dl>
@@ -71,7 +71,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
       </div>
 
       {/* Incorrect Answers */}
-      <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+      <div className="eval-stats-card overflow-hidden shadow rounded-lg">
         <div className="p-5">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -79,10 +79,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                <dt className="eval-stats-label text-sm font-medium truncate">
                   Incorrect Answers
                 </dt>
-                <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                <dd className="eval-stats-value text-lg font-medium">
                   {stats.incorrectCount}
                 </dd>
               </dl>
@@ -92,7 +92,7 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
       </div>
 
       {/* Duration */}
-      <div className="bg-white dark:bg-gray-800 overflow-hidden shadow rounded-lg">
+      <div className="eval-stats-card overflow-hidden shadow rounded-lg">
         <div className="p-5">
           <div className="flex items-center">
             <div className="flex-shrink-0">
@@ -100,10 +100,10 @@ export const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
             </div>
             <div className="ml-5 w-0 flex-1">
               <dl>
-                <dt className="text-sm font-medium text-gray-500 dark:text-gray-400 truncate">
+                <dt className="eval-stats-label text-sm font-medium truncate">
                   Duration
                 </dt>
-                <dd className="text-lg font-medium text-gray-900 dark:text-white">
+                <dd className="eval-stats-value text-lg font-medium">
                   {formatDuration(stats.duration)}
                 </dd>
               </dl>

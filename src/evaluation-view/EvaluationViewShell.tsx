@@ -62,6 +62,7 @@ export class EvaluationViewShell extends React.Component<
     hasInProgressEvaluation: boolean;
     remainingQuestionsCount: number;
     lastUpdatedTimestamp: number | null;
+    currentTheme: 'light' | 'dark';
   }
 > {
   private evaluationService: EvaluationService;
@@ -69,6 +70,7 @@ export class EvaluationViewShell extends React.Component<
   private modelConfigLoader: ModelConfigLoader | null = null;
   private modelSelector: FallbackModelSelector;
   private personaResolver: PersonaResolver | null = null;
+  private themeChangeListener: ((theme: string) => void) | null = null;
 
   constructor(props: EvaluationViewProps) {
     super(props);
@@ -98,6 +100,7 @@ export class EvaluationViewShell extends React.Component<
       detailedResults: [],
       searchTerm: '',
       correctnessFilter: 'all',
+      currentTheme: 'light',
       statusFilter: 'all',
       expandedResultIds: new Set(),
       showDialog: false,
@@ -117,6 +120,18 @@ export class EvaluationViewShell extends React.Component<
   }
 
   async componentDidMount() {
+    // Setup theme listener
+    if (this.props.services?.theme) {
+      const currentTheme = this.props.services.theme.getCurrentTheme();
+      this.setState({ currentTheme });
+
+      this.themeChangeListener = (theme: string) => {
+        this.setState({ currentTheme: theme as 'light' | 'dark' });
+      };
+
+      this.props.services.theme.addThemeChangeListener(this.themeChangeListener);
+    }
+
     // Get user ID from BrainDrive auth
     try {
       const userResponse: any = await this.props.services?.api?.get('/api/v1/auth/me');
@@ -133,6 +148,13 @@ export class EvaluationViewShell extends React.Component<
     this.loadPersonas();
     this.loadRuns();
     this.checkForInProgressEvaluation();
+  }
+
+  componentWillUnmount() {
+    // Cleanup theme listener
+    if (this.props.services?.theme && this.themeChangeListener) {
+      this.props.services.theme.removeThemeChangeListener(this.themeChangeListener);
+    }
   }
 
   /**
@@ -436,6 +458,7 @@ export class EvaluationViewShell extends React.Component<
       lastUpdatedTimestamp,
       isRunning,
       activeRun,
+      currentTheme,
     } = this.state;
 
     const filteredResults = this.getFilteredResults();
@@ -444,24 +467,24 @@ export class EvaluationViewShell extends React.Component<
     const latestRun = pastRuns.length > 0 ? pastRuns[0] : null;
 
     return (
-      <div className="evaluation-view">
+      <div className={`evaluation-view ${currentTheme === 'dark' ? 'dark dark-theme' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           {/* Resume Banner */}
           {hasInProgressEvaluation && (
-            <Alert className="mb-6 border-blue-500 bg-blue-50 dark:bg-blue-950">
-              <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            <Alert className="mb-6 border-blue-500 bg-blue-50 dark-theme:bg-blue-950">
+              <AlertCircle className="h-4 w-4 text-blue-600 dark-theme:text-blue-400" />
               <AlertDescription className="ml-2 flex items-center justify-between">
                 <div>
                   <div>
-                    <span className="font-medium text-blue-900 dark:text-blue-100">
+                    <span className="font-medium text-blue-900 dark-theme:text-blue-100">
                       In-progress evaluation found
                     </span>
-                    <span className="text-blue-700 dark:text-blue-300 ml-2">
+                    <span className="text-blue-700 dark-theme:text-blue-300 ml-2">
                       ({remainingQuestionsCount} questions remaining)
                     </span>
                   </div>
                   {lastUpdatedTimestamp && (
-                    <div className="text-sm text-blue-600 dark:text-blue-400 mt-1">
+                    <div className="text-sm text-blue-600 dark-theme:text-blue-400 mt-1">
                       Last updated: {this.formatTimeAgo(lastUpdatedTimestamp)}
                     </div>
                   )}
@@ -478,7 +501,7 @@ export class EvaluationViewShell extends React.Component<
                     onClick={this.handleStartFresh}
                     variant="outline"
                     size="sm"
-                    className="border-blue-600 text-blue-600 hover:bg-blue-100 dark:hover:bg-blue-900"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-100 dark-theme:hover:bg-blue-900"
                   >
                     Start Fresh
                   </Button>
@@ -513,10 +536,10 @@ export class EvaluationViewShell extends React.Component<
           <div className="mb-8">
             <div className="flex justify-between items-center">
               <div>
-                <h1 className="text-3xl font-bold dark:text-white">
+                <h1 className="text-3xl font-bold eval-table-cell">
                   Chat with Docs System Evaluation
                 </h1>
-                <p className="mt-2 text-sm dark:text-gray-400">
+                <p className="mt-2 text-sm eval-table-cell-secondary">
                   Test and measure the accuracy of your RAG system
                 </p>
               </div>
@@ -577,16 +600,16 @@ export class EvaluationViewShell extends React.Component<
                 onSearchChange={this.handleSearchChange}
                 onFilterChange={this.handleFilterChange}
               />
-              <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-                <div className="px-4 py-5 sm:px-6 border-b border-gray-200 dark:border-gray-700">
-                  <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+              <div className="eval-stats-card shadow rounded-lg overflow-hidden">
+                <div className="px-4 py-5 sm:px-6 border-b eval-table-row">
+                  <h3 className="text-lg leading-6 font-medium eval-table-cell">
                     Test Results
                   </h3>
                 </div>
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
+                <div className="divide-y eval-table-row">
                   {filteredResults.length === 0 ? (
                     <div className="px-6 py-12 text-center">
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                      <p className="text-sm eval-table-cell-secondary">
                         No results match your filters
                       </p>
                     </div>
