@@ -119,25 +119,32 @@ docs/
 
 ---
 
-### Integrations
+### Backend Systems
 
-1. **BrainDrive Services**
-   - Optional services (api, theme, settings, ai, etc.)
-   - Must implement fallbacks for all services
-   - CSS theming with `.dark` class (NOT Tailwind)
+**Plugin integrates with 3 backend systems:**
+
+1. **BrainDrive Core Backend** (Host) - Port 8005
+   - Services via Module Federation (api, theme, settings, personas, models, AI)
+   - Optional (plugin has fallbacks)
    - File: `integrations/braindrive-services.md`
 
-2. **External Services**
-   - cwyd_service (port 8000) - RAG backend
-   - document_processing_service (port 8080) - Document processing
-   - Health check system blocks UI until ready
+2. **Chat With Documents Backend** - Port 8000
+   - RAG, collections, documents, chat, search, evaluation
+   - **Required** for plugin functionality
+   - File: `integrations/external-services.md`
+   - API Reference: `chat-with-documents-api/API-REFERENCE.md`
+
+3. **Document Processing Service** - Port 8080
+   - Document upload, chunking, embedding generation
+   - **Required** for document upload
    - File: `integrations/external-services.md`
 
-3. **Module Federation**
-   - Webpack Module Federation v5 setup
-   - React singleton enforcement critical
-   - Path aliases must match webpack + tsconfig
-   - File: `integrations/module-federation.md`
+### Module Federation
+
+- Webpack Module Federation v5 setup
+- React singleton enforcement critical
+- Path aliases must match webpack + tsconfig
+- File: `integrations/module-federation.md`
 
 ---
 

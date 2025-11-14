@@ -1,31 +1,61 @@
-# Integration: External Services
+# Integration: External Backend Services
 
-**Systems:**
-- cwyd_service (Chat With Your Docs backend) - Port 8000
-- document_processing_service - Port 8080
+**Architecture:** Plugin integrates with 3 backend systems:
+1. **BrainDrive Core Backend** (Host) - Port 8005 - Services via Module Federation
+2. **Chat With Documents Backend** - Port 8000 - RAG, collections, chat
+3. **Document Processing Service** - Port 8080 - Document processing pipeline
 
-**Type:** Required external services
-**Critical:** Plugin functionality blocked until both services ready
+**Type:** External services (2 & 3) are required
+**Critical:** Plugin functionality blocked until external services ready
+
+**See also:**
+- `braindrive-services.md` - BrainDrive host services (port 8005)
+- `../chat-with-documents-api/API-REFERENCE.md` - Complete API specs for Chat With Documents Backend
 
 ---
 
-## Service Overview
+## Backend Systems Architecture
 
-### 1. cwyd_service (Port 8000)
+### System 1: BrainDrive Core Backend (Host)
+- **Port:** 8005
+- **Integration:** Via Module Federation services prop
+- **Purpose:** Host application services (auth, theme, settings, personas, models, AI)
+- **Documentation:** `braindrive-services.md`
+- **Availability:** Provided by host, optional (plugin has fallbacks)
 
-**Purpose:** RAG backend (search, chat, evaluation)
+### System 2: Chat With Documents Backend
+- **Port:** 8000
+- **Integration:** Direct HTTP calls (via HttpClient/DataRepository)
+- **Purpose:** RAG backend (collections, documents, chat, search, evaluation)
+- **Documentation:** `../chat-with-documents-api/API-REFERENCE.md`
+- **Availability:** **Required** - Must be running for plugin functionality
+
+### System 3: Document Processing Service
+- **Port:** 8080
+- **Integration:** Direct HTTP calls (via DocumentService)
+- **Purpose:** Document processing pipeline (upload, chunking, embedding generation)
+- **Documentation:** Health check only (no public API beyond upload)
+- **Availability:** **Required** - Must be running for document upload
+
+---
+
+## Service Details
+
+### Chat With Documents Backend (Port 8000)
+
+**Purpose:** RAG backend (collections, documents, chat, search, evaluation)
 
 **Base URL:** `http://127.0.0.1:8000`
 
-**Key endpoints:**
-- `GET /health` - Health check
-- `POST /api/collections/` - Create collection
-- `GET /api/collections/` - List collections
-- `POST /api/search/` - RAG search
-- `POST /api/chat/sessions/` - Create chat session
-- `POST /api/chat/messages/` - Send message
-- `POST /api/evaluation/plugin/start-with-questions` - Start evaluation
-- `POST /api/evaluation/plugin/submit-with-questions` - Submit results
+**Key endpoint categories:**
+- Collections API - Create, list, update, delete collections
+- Documents API - Manage documents in collections
+- Chat API - Chat sessions and messages
+- Search API - RAG search with configurable parameters
+- Evaluation API - End-to-end evaluation with LLM-as-judge
+- Health Check - Service status
+
+**Complete API Reference:** `../chat-with-documents-api/API-REFERENCE.md`
 
 **Health check:**
 ```typescript
@@ -38,7 +68,7 @@ const data = await response.json();
 
 ---
 
-### 2. document_processing_service (Port 8080)
+### Document Processing Service (Port 8080)
 
 **Purpose:** Document processing (chunking, embedding generation)
 
@@ -287,8 +317,13 @@ Before using plugin:
 
 **Default URLs (constants.ts):**
 ```typescript
+// Chat With Documents Backend
 export const CHAT_SERVICE_API_BASE = 'http://127.0.0.1:8000';
+
+// Document Processing Service
 export const DOCUMENT_PROCESSING_SERVICE_API_BASE = 'http://127.0.0.1:8080';
+
+// Note: BrainDrive Core Backend (port 8005) accessed via services.api (no constant needed)
 ```
 
 **Override via plugin settings:**
