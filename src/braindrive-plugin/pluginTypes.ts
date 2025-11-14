@@ -202,6 +202,7 @@ export interface ChatCollectionsPluginState {
   isInitializing: boolean;
   serviceStatuses: ServiceRuntimeStatus[];
   showServiceDetails: boolean;
+  availableModels: any[];
 }
 
 export interface ChatCollectionsPluginProps {

@@ -12,14 +12,15 @@ import {
 } from './components';
 
 import { PluginService } from './braindrive-plugin/PluginService';
-import { CHAT_SERVICE_API_BASE, PLUGIN_SERVICE_RUNTIMES } from './constants'; 
+import { CHAT_SERVICE_API_BASE, PLUGIN_SERVICE_RUNTIMES } from './constants';
 import {
 	ViewType,
-    ChatCollectionsPluginState, 
+    ChatCollectionsPluginState,
     ChatCollectionsPluginProps,
     Collection,
-} from './braindrive-plugin/pluginTypes'; 
+} from './braindrive-plugin/pluginTypes';
 import { PluginHeader } from './braindrive-plugin/PluginHeader';
+import { ModelConfigLoader } from './domain/models';
 
 // Version information
 export const version = '1.0.0';
@@ -27,7 +28,8 @@ export const version = '1.0.0';
 
 class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps, ChatCollectionsPluginState> {
     // 1. The service instance is now the only private class property
-    private pluginService: PluginService; 
+    private pluginService: PluginService;
+    private modelConfigLoader: ModelConfigLoader | null = null; 
 
     constructor(props: ChatCollectionsPluginProps) {
         super(props);
@@ -52,15 +54,21 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
                 status: 'checking' as const,
             })),
             showServiceDetails: false,
+            availableModels: [],
         };
         
         // 2. Instantiate the PluginService, injecting dependencies (props) and the setState callback
         this.pluginService = new PluginService(
-            initialState, 
-            props.services, 
+            initialState,
+            props.services,
             props.config,
             (newState) => this.setState((prev) => ({ ...prev, ...newState }))
         );
+
+        // Initialize model configuration loader
+        if (props.services.api) {
+            this.modelConfigLoader = new ModelConfigLoader(props.services.api);
+        }
 
         // Set initial state from the service
         this.state = initialState; 
@@ -73,15 +81,34 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
         this.pluginService.setMounted(true);
         try {
             await this.pluginService.initializePlugin();
+            this.loadModels();
             this.setState({ isInitializing: false });
         } catch (error) {
             console.error('ChatCollectionsPlugin: Failed to initialize:', error);
-            this.setState({ 
+            this.setState({
                 error: 'Failed to initialize plugin',
-                isInitializing: false 
+                isInitializing: false
             });
         }
     }
+
+    private loadModels = async () => {
+        if (!this.modelConfigLoader) {
+            return;
+        }
+
+        try {
+            const result = await this.modelConfigLoader.loadModels();
+            this.setState({
+                availableModels: result.models,
+            });
+        } catch (error: any) {
+            console.error('Error loading models:', error);
+            this.setState({
+                availableModels: [],
+            });
+        }
+    };
 
     componentWillUnmount() {
         this.pluginService.setMounted(false);
@@ -184,7 +211,10 @@ class BrainDriveChatWithDocs extends React.Component<ChatCollectionsPluginProps,
                             />
                         )}
                         {currentView === ViewType.SETTINGS && (
-                            <ChatCollectionsSettings services={services} />
+                            <ChatCollectionsSettings
+                                services={services}
+                                availableModels={this.state.availableModels}
+                            />
                         )}
                         {currentView === ViewType.EVALUATION && (
                             <EvaluationViewShell

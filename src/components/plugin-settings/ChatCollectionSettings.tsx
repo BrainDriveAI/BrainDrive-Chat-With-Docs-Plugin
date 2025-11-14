@@ -1,8 +1,9 @@
 import React from 'react';
 import { Loader2, AlertCircle, Save, XCircle, Info, EyeOff, Eye, RotateCcw, X } from 'lucide-react';
-import type { Services } from '../../types';
+import type { Services, ModelInfo } from '../../types';
 import { BRAINDRIVE_CORE_API, DEFAULT_PLUGIN_SETTINGS as CHAT_SETTINGS} from '../../constants';
 import { ActionButton } from './ActionButton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 interface FieldDependency {
     field: string;
@@ -33,6 +34,11 @@ interface SelectFieldConfig extends BaseFieldConfig {
     placeholder?: string;
 }
 
+interface ModelSelectFieldConfig extends BaseFieldConfig {
+    type: 'model-select';
+    placeholder?: string;
+}
+
 interface NumberFieldConfig extends BaseFieldConfig {
     type: 'number';
     min?: number;
@@ -44,10 +50,11 @@ interface CheckboxFieldConfig extends BaseFieldConfig {
     type: 'checkbox';
 }
 
-type FieldConfig = TextFieldConfig | PasswordFieldConfig | SelectFieldConfig | NumberFieldConfig | CheckboxFieldConfig;
+type FieldConfig = TextFieldConfig | PasswordFieldConfig | SelectFieldConfig | ModelSelectFieldConfig | NumberFieldConfig | CheckboxFieldConfig;
 
 interface ChatCollectionsSettingsProps {
     services: Services;
+    availableModels: ModelInfo[];
     onBack?: () => void;
 }
 
@@ -61,12 +68,12 @@ interface ChatSettingsValue {
     OLLAMA_LLM_MODEL: string;
     OLLAMA_EMBEDDING_BASE_URL: string;
     OLLAMA_EMBEDDING_MODEL: string;
-    DOCUMENT_PROCESSOR_API_URL: string;
-    DOCUMENT_PROCESSOR_API_KEY: string;
-    DOCUMENT_PROCESSOR_TIMEOUT: number;
-    DOCUMENT_PROCESSOR_MAX_RETRIES: number;
+    EVALUATION_PROVIDER: string;
     OPENAI_EVALUATION_API_KEY: string;
     OPENAI_EVALUATION_MODEL: string;
+    // OpenRouter fields - commented out for now
+    // OPENROUTER_EVALUATION_API_KEY: string;
+    // OPENROUTER_EVALUATION_MODEL: string;
 }
 
 interface ChatCollectionsSettingsState {
@@ -80,6 +87,9 @@ interface ChatCollectionsSettingsState {
     showApiKey: boolean;
     fieldErrors: Record<string, string>;
     restartStatus: null | string;
+    llmModelSearchQuery: string;
+    embeddingModelSearchQuery: string;
+    contextualModelSearchQuery: string;
 }
 
 export interface SettingsInstance {
@@ -99,63 +109,63 @@ export type SettingsInstances = SettingsInstance[];
 // Field configuration with enhanced metadata
 const FIELD_CONFIG: Record<keyof ChatSettingsValue, FieldConfig> = {
   LLM_PROVIDER: {
-    label: 'LLM Provider',
+    label: 'Provider',
     description: 'Choose your Large Language Model provider',
     type: 'select',
     options: ['ollama'],
-    section: 'providers',
+    section: 'llm',
     required: true,
     placeholder: 'Select LLM provider...'
   },
+  OLLAMA_LLM_BASE_URL: {
+    label: 'Base URL',
+    description: 'Base URL for your Ollama server (e.g., http://localhost:11434)',
+    type: 'url',
+    section: 'llm',
+    placeholder: 'http://localhost:11434',
+    dependsOn: { field: 'LLM_PROVIDER', value: 'ollama' }
+  },
+  OLLAMA_LLM_MODEL: {
+    label: 'Model',
+    description: 'The Ollama model to use for chat',
+    type: 'model-select',
+    section: 'llm',
+    placeholder: 'Select model...',
+    dependsOn: { field: 'LLM_PROVIDER', value: 'ollama' }
+  },
   EMBEDDING_PROVIDER: {
-    label: 'Embedding Provider',
+    label: 'Provider',
     description: 'Choose your embedding model provider',
     type: 'select',
     options: ['ollama'],
-    section: 'providers',
+    section: 'embedding',
     required: true,
     placeholder: 'Select embedding provider...'
+  },
+  OLLAMA_EMBEDDING_BASE_URL: {
+    label: 'Base URL',
+    description: 'Base URL for Ollama embedding service',
+    type: 'url',
+    section: 'embedding',
+    placeholder: 'http://localhost:11434',
+    dependsOn: { field: 'EMBEDDING_PROVIDER', value: 'ollama' }
+  },
+  OLLAMA_EMBEDDING_MODEL: {
+    label: 'Model',
+    description: 'The Ollama model to use for embeddings',
+    type: 'model-select',
+    section: 'embedding',
+    placeholder: 'Select model...',
+    dependsOn: { field: 'EMBEDDING_PROVIDER', value: 'ollama' }
   },
   ENABLE_CONTEXTUAL_RETRIEVAL: {
     label: 'Enable Contextual Retrieval',
     description: 'Uses a separate smaller LLM to generate chunk context for better retrieval',
     type: 'checkbox',
-    section: 'retrieval'
-  },
-  OLLAMA_LLM_BASE_URL: {
-    label: 'Ollama LLM Base URL',
-    description: 'Base URL for your Ollama server (e.g., http://localhost:11434)',
-    type: 'url',
-    section: 'ollama',
-    placeholder: 'http://localhost:11434',
-    dependsOn: { field: 'LLM_PROVIDER', value: 'ollama' }
-  },
-  OLLAMA_LLM_MODEL: {
-    label: 'Ollama LLM Model',
-    description: 'The Ollama model to use for chat (e.g., qwen3:8b)',
-    type: 'text',
-    section: 'ollama',
-    placeholder: 'qwen3:8b',
-    dependsOn: { field: 'LLM_PROVIDER', value: 'ollama' }
-  },
-  OLLAMA_EMBEDDING_BASE_URL: {
-    label: 'Ollama Embedding Base URL',
-    description: 'Base URL for Ollama embedding service',
-    type: 'url',
-    section: 'ollama',
-    placeholder: 'http://localhost:11434',
-    dependsOn: { field: 'EMBEDDING_PROVIDER', value: 'ollama' }
-  },
-  OLLAMA_EMBEDDING_MODEL: {
-    label: 'Ollama Embedding Model',
-    description: 'The Ollama model to use for embeddings (e.g., mxbai-embed-large)',
-    type: 'text',
-    section: 'ollama',
-    placeholder: 'mxbai-embed-large',
-    dependsOn: { field: 'EMBEDDING_PROVIDER', value: 'ollama' }
+    section: 'contextual'
   },
   OLLAMA_CONTEXTUAL_LLM_BASE_URL: {
-    label: 'Contextual LLM Base URL',
+    label: 'Base URL',
     description: 'Base URL for contextual retrieval Ollama service',
     type: 'url',
     section: 'contextual',
@@ -163,70 +173,62 @@ const FIELD_CONFIG: Record<keyof ChatSettingsValue, FieldConfig> = {
     dependsOn: { field: 'ENABLE_CONTEXTUAL_RETRIEVAL', value: true }
   },
   OLLAMA_CONTEXTUAL_LLM_MODEL: {
-    label: 'Contextual LLM Model',
-    description: 'Smaller model for generating context (e.g., llama3.2:3b)',
-    type: 'text',
+    label: 'Model',
+    description: 'Smaller model for generating context',
+    type: 'model-select',
     section: 'contextual',
-    placeholder: 'llama3.2:3b',
+    placeholder: 'Select model...',
     dependsOn: { field: 'ENABLE_CONTEXTUAL_RETRIEVAL', value: true }
   },
-  DOCUMENT_PROCESSOR_API_URL: {
-    label: 'Document Processor API URL',
-    description: 'URL for the Document Processor microservice',
-    type: 'url',
-    section: 'processor',
-    placeholder: 'http://host.docker.internal:8080/documents/',
-    required: true
-  },
-  DOCUMENT_PROCESSOR_API_KEY: {
-    label: 'Document Processor API Key',
-    description: 'API key for document processor authentication',
-    type: 'password',
-    section: 'processor',
-    placeholder: 'Enter API key...',
-    required: true
-  },
-  DOCUMENT_PROCESSOR_TIMEOUT: {
-    label: 'Timeout (seconds)',
-    description: 'Timeout in seconds for document processing',
-    type: 'number',
-    section: 'processor',
-    min: 30,
-    max: 1800,
-    placeholder: '300'
-  },
-  DOCUMENT_PROCESSOR_MAX_RETRIES: {
-    label: 'Max Retries',
-    description: 'Maximum number of retry attempts for failed requests',
-    type: 'number',
-    section: 'processor',
-    min: 1,
-    max: 10,
-    placeholder: '3'
+  EVALUATION_PROVIDER: {
+    label: 'Provider',
+    description: 'Choose your evaluation LLM provider',
+    type: 'select',
+    options: ['openai'], // 'openrouter' - commented out for now
+    section: 'evaluation',
+    required: true,
+    placeholder: 'Select evaluation provider...'
   },
   OPENAI_EVALUATION_API_KEY: {
-    label: 'OpenAI API Key',
+    label: 'API Key',
     description: 'Your OpenAI API key for evaluation judge service',
     type: 'password',
     section: 'evaluation',
-    placeholder: 'sk-...'
+    placeholder: 'sk-...',
+    dependsOn: { field: 'EVALUATION_PROVIDER', value: 'openai' }
   },
   OPENAI_EVALUATION_MODEL: {
-    label: 'OpenAI Evaluation Model',
+    label: 'Model',
     description: 'The OpenAI model to use as judge for evaluation',
     type: 'text',
     section: 'evaluation',
-    placeholder: 'gpt-5-mini'
-  }
+    placeholder: 'gpt-5-mini',
+    dependsOn: { field: 'EVALUATION_PROVIDER', value: 'openai' }
+  },
+  // OpenRouter fields - commented out for now
+  // OPENROUTER_EVALUATION_API_KEY: {
+  //   label: 'API Key',
+  //   description: 'Your OpenRouter API key for evaluation judge service',
+  //   type: 'password',
+  //   section: 'evaluation',
+  //   placeholder: 'sk-or-...',
+  //   dependsOn: { field: 'EVALUATION_PROVIDER', value: 'openrouter' }
+  // },
+  // OPENROUTER_EVALUATION_MODEL: {
+  //   label: 'Model',
+  //   description: 'The OpenRouter model to use as judge for evaluation',
+  //   type: 'text',
+  //   section: 'evaluation',
+  //   placeholder: 'openai/gpt-4o-mini',
+  //   dependsOn: { field: 'EVALUATION_PROVIDER', value: 'openrouter' }
+  // }
 };
 
 const SECTIONS = {
-    providers: { title: 'Provider Settings', icon: '🤖' },
-    retrieval: { title: 'Contextual Retrieval', icon: '🧠' },
-    ollama: { title: 'Ollama Configuration', icon: '🦙' },
-    contextual: { title: 'Contextual LLM Settings', icon: '🔍' },
-    processor: { title: 'Document Processor', icon: '📄' },
-    evaluation: { title: 'OpenAI Configuration (Evaluation)', icon: '✅' }
+    llm: { title: 'LLM Provider', icon: '🤖' },
+    embedding: { title: 'Embedding Provider', icon: '📊' },
+    contextual: { title: 'Contextual Retrieval', icon: '🔍' },
+    evaluation: { title: 'Evaluation Settings', icon: '✅' }
 };
 
 
@@ -246,6 +248,9 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
             showApiKey: false,
             fieldErrors: {},
             restartStatus: null,
+            llmModelSearchQuery: '',
+            embeddingModelSearchQuery: '',
+            contextualModelSearchQuery: '',
         };
     }
 
@@ -303,9 +308,55 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
     private shouldShowField = (fieldName: string): boolean => {
         const config = FIELD_CONFIG[fieldName as keyof ChatSettingsValue];
         if (!config?.dependsOn) return true;
-        
+
         const { field, value } = config.dependsOn;
         return this.state.settings[field as keyof ChatSettingsValue] === value;
+    };
+
+    private getFilteredModels = (searchQuery: string): ModelInfo[] => {
+        const { availableModels } = this.props;
+
+        if (!searchQuery.trim()) {
+            return availableModels;
+        }
+
+        const query = searchQuery.toLowerCase();
+        return availableModels.filter((model) => {
+            const modelName = model.name.toLowerCase();
+            const serverName = model.serverName.toLowerCase();
+            return modelName.includes(query) || serverName.includes(query);
+        });
+    };
+
+    private handleModelSearchChange = (fieldName: string) => (query: string) => {
+        if (fieldName === 'OLLAMA_LLM_MODEL') {
+            this.setState({ llmModelSearchQuery: query });
+        } else if (fieldName === 'OLLAMA_EMBEDDING_MODEL') {
+            this.setState({ embeddingModelSearchQuery: query });
+        } else if (fieldName === 'OLLAMA_CONTEXTUAL_LLM_MODEL') {
+            this.setState({ contextualModelSearchQuery: query });
+        }
+    };
+
+    private getModelSearchQuery = (fieldName: string): string => {
+        if (fieldName === 'OLLAMA_LLM_MODEL') {
+            return this.state.llmModelSearchQuery;
+        } else if (fieldName === 'OLLAMA_EMBEDDING_MODEL') {
+            return this.state.embeddingModelSearchQuery;
+        } else if (fieldName === 'OLLAMA_CONTEXTUAL_LLM_MODEL') {
+            return this.state.contextualModelSearchQuery;
+        }
+        return '';
+    };
+
+    private handleModelChange = (fieldName: string) => (value: string) => {
+        this.setState(prevState => ({
+            settings: {
+                ...prevState.settings,
+                [fieldName]: value,
+            },
+            hasUnsavedChanges: true,
+        }));
     };
 
     private async loadSettings() {
@@ -607,7 +658,7 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
             <input
                 name={fieldName}
                 type="number"
-                value={value as number}
+                value={typeof value === 'number' ? value : 0}
                 onChange={this.handleInputChange}
                 className={baseClasses}
                 placeholder={numberConfig.placeholder || ''}
@@ -616,7 +667,42 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
             />
             );
             break;
-        
+
+        case 'model-select':
+            const modelSelectConfig = config as ModelSelectFieldConfig;
+            const { availableModels } = this.props;
+            const modelSearchQuery = this.getModelSearchQuery(fieldName);
+            const filteredModels = this.getFilteredModels(modelSearchQuery);
+            const selectedModelName = value as string;
+
+            inputElement = (
+                <Select value={selectedModelName} onValueChange={this.handleModelChange(fieldName)}>
+                    <SelectTrigger className="w-full">
+                        <SelectValue placeholder={modelSelectConfig.placeholder || 'Select model...'}>
+                            {selectedModelName || modelSelectConfig.placeholder}
+                        </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent
+                        searchable={availableModels.length > 1}
+                        searchPlaceholder="Search models..."
+                        onSearchChange={this.handleModelSearchChange(fieldName)}
+                    >
+                        {filteredModels.map((model) => (
+                            <SelectItem key={model.name} value={model.name}>
+                                <div className="flex flex-col">
+                                    <span>{model.name}</span>
+                                    <span className="text-xs text-gray-500">{model.serverName}</span>
+                                </div>
+                            </SelectItem>
+                        ))}
+                        {filteredModels.length === 0 && (
+                            <div className="p-2 text-sm text-gray-500">No models found</div>
+                        )}
+                    </SelectContent>
+                </Select>
+            );
+            break;
+
         default:
             const textConfig = config as TextFieldConfig;
             inputElement = (
@@ -667,9 +753,70 @@ export class ChatCollectionsSettings extends React.Component<ChatCollectionsSett
         );
 
         const visibleFields = fields.filter(field => this.shouldShowField(field));
-        
+
         if (visibleFields.length === 0) return null;
 
+        // Custom layout for provider sections (llm, embedding, evaluation)
+        const isProviderSection = ['llm', 'embedding', 'evaluation'].includes(sectionKey);
+
+        if (isProviderSection) {
+            const providerField = visibleFields.find(f => f.endsWith('_PROVIDER') || f === 'EVALUATION_PROVIDER');
+            const otherFields = visibleFields.filter(f => f !== providerField);
+
+            return (
+                <div key={sectionKey} className="p-6 ccs-card">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2 ccs-card-title">
+                        <span>{section.icon}</span>
+                        <span>{section.title}</span>
+                    </h3>
+                    <div className="space-y-6">
+                        {/* Provider dropdown - half width */}
+                        {providerField && (
+                            <div className="md:w-1/2">
+                                {this.renderField(providerField)}
+                            </div>
+                        )}
+                        {/* Base URL and Model on one row */}
+                        {otherFields.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {otherFields.map(field => this.renderField(field))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Custom layout for contextual retrieval section
+        if (sectionKey === 'contextual') {
+            const checkboxField = visibleFields.find(f => f === 'ENABLE_CONTEXTUAL_RETRIEVAL');
+            const otherFields = visibleFields.filter(f => f !== checkboxField);
+
+            return (
+                <div key={sectionKey} className="p-6 ccs-card">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2 ccs-card-title">
+                        <span>{section.icon}</span>
+                        <span>{section.title}</span>
+                    </h3>
+                    <div className="space-y-6">
+                        {/* Checkbox - half width */}
+                        {checkboxField && (
+                            <div className="md:w-1/2">
+                                {this.renderField(checkboxField)}
+                            </div>
+                        )}
+                        {/* Base URL and Model on one row */}
+                        {otherFields.length > 0 && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {otherFields.map(field => this.renderField(field))}
+                            </div>
+                        )}
+                    </div>
+                </div>
+            );
+        }
+
+        // Default layout for other sections
         return (
         <div key={sectionKey} className="p-6 ccs-card">
             <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2 ccs-card-title">
