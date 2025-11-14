@@ -179,6 +179,8 @@ interface RunEvaluationDialogState {
   selectedCollectionId: string;
   questions: string;
   modelSearchQuery: string;
+  personaSearchQuery: string;
+  collectionSearchQuery: string;
   validationErrors: {
     questions?: string;
   };
@@ -196,6 +198,8 @@ export class RunEvaluationDialog extends React.Component<
       selectedCollectionId: '',
       questions: '',
       modelSearchQuery: '',
+      personaSearchQuery: '',
+      collectionSearchQuery: '',
       validationErrors: {},
     };
   }
@@ -295,6 +299,14 @@ export class RunEvaluationDialog extends React.Component<
     this.setState({ modelSearchQuery: query });
   };
 
+  handlePersonaSearchChange = (query: string) => {
+    this.setState({ personaSearchQuery: query });
+  };
+
+  handleCollectionSearchChange = (query: string) => {
+    this.setState({ collectionSearchQuery: query });
+  };
+
   getFilteredModels = (): ModelInfo[] => {
     const { availableModels } = this.props;
     const { modelSearchQuery } = this.state;
@@ -308,6 +320,37 @@ export class RunEvaluationDialog extends React.Component<
       const modelName = model.name.toLowerCase();
       const serverName = model.serverName.toLowerCase();
       return modelName.includes(query) || serverName.includes(query);
+    });
+  };
+
+  getFilteredPersonas = (): PersonaInfo[] => {
+    const { availablePersonas } = this.props;
+    const { personaSearchQuery } = this.state;
+
+    if (!personaSearchQuery.trim()) {
+      return availablePersonas;
+    }
+
+    const query = personaSearchQuery.toLowerCase();
+    return availablePersonas.filter((persona) => {
+      const personaName = persona.name.toLowerCase();
+      return personaName.includes(query);
+    });
+  };
+
+  getFilteredCollections = (): Collection[] => {
+    const { collections } = this.props;
+    const { collectionSearchQuery } = this.state;
+
+    if (!collectionSearchQuery.trim()) {
+      return collections;
+    }
+
+    const query = collectionSearchQuery.toLowerCase();
+    return collections.filter((collection) => {
+      const collectionName = collection.name.toLowerCase();
+      const collectionDesc = (collection.description || '').toLowerCase();
+      return collectionName.includes(query) || collectionDesc.includes(query);
     });
   };
 
@@ -331,10 +374,14 @@ export class RunEvaluationDialog extends React.Component<
       selectedCollectionId,
       questions,
       modelSearchQuery,
+      personaSearchQuery,
+      collectionSearchQuery,
       validationErrors,
     } = this.state;
 
     const filteredModels = this.getFilteredModels();
+    const filteredPersonas = this.getFilteredPersonas();
+    const filteredCollections = this.getFilteredCollections();
     const canSubmit = selectedModelKey && selectedCollectionId && questions.trim() && !isLoadingModels;
     const isDark = this.isDarkMode();
 
@@ -349,142 +396,171 @@ export class RunEvaluationDialog extends React.Component<
           </DialogHeader>
 
           <div className="grid gap-4 py-4 overflow-y-auto flex-1">
-            {/* Model Selection */}
-            <div className="grid gap-2">
-              <label
-                htmlFor="model-select"
-                className="text-sm font-medium"
-                style={{ color: isDark ? '#f3f4f6' : '#111827' }}
-              >
-                LLM Model <span className="text-red-500">*</span>
-              </label>
-              {isLoadingModels ? (
-                <div
-                  className="text-sm"
-                  style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
+            {/* Model, Persona, and Collection Selection - Single Row */}
+            <div className="grid grid-cols-3 gap-3">
+              {/* Model Selection */}
+              <div className="grid gap-2">
+                <label
+                  htmlFor="model-select"
+                  className="text-sm font-medium"
+                  style={{ color: isDark ? '#f3f4f6' : '#111827' }}
                 >
-                  Loading models...
-                </div>
-              ) : (
+                  LLM Model <span className="text-red-500">*</span>
+                </label>
+                {isLoadingModels ? (
+                  <div
+                    className="text-sm"
+                    style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
+                  >
+                    Loading...
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedModelKey}
+                    onValueChange={this.handleModelChange}
+                    disabled={availableModels.length === 0}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue
+                        placeholder={
+                          availableModels.length === 0 ? 'No models' : 'Select model'
+                        }
+                      >
+                        {selectedModelKey && (() => {
+                          const selectedModel = availableModels.find(m => this.getModelKey(m) === selectedModelKey);
+                          return selectedModel ? `${selectedModel.name}` : selectedModelKey;
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent
+                      searchable={availableModels.length > 1}
+                      searchPlaceholder="Search models..."
+                      onSearchChange={this.handleModelSearchChange}
+                    >
+                      {filteredModels.length === 0 ? (
+                        <div
+                          className="px-2 py-1.5 text-sm text-center"
+                          style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
+                        >
+                          No models found
+                        </div>
+                      ) : (
+                        filteredModels.map((model) => {
+                          const key = this.getModelKey(model);
+                          return (
+                            <SelectItem key={key} value={key}>
+                              {model.name} ({model.serverName})
+                            </SelectItem>
+                          );
+                        })
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {/* Persona Selection */}
+              <div className="grid gap-2">
+                <label
+                  htmlFor="persona-select"
+                  className="text-sm font-medium"
+                  style={{ color: isDark ? '#f3f4f6' : '#111827' }}
+                >
+                  Persona{' '}
+                  <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
+                    (Optional)
+                  </span>
+                </label>
+                {isLoadingPersonas ? (
+                  <div
+                    className="text-sm"
+                    style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
+                  >
+                    Loading...
+                  </div>
+                ) : (
+                  <Select
+                    value={selectedPersonaId || 'none'}
+                    onValueChange={this.handlePersonaChange}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="None">
+                        {(() => {
+                          const value = selectedPersonaId || 'none';
+                          if (value === 'none') return 'None';
+                          const selectedPersona = availablePersonas.find(p => p.id === value);
+                          return selectedPersona ? selectedPersona.name : value;
+                        })()}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent
+                      searchable={availablePersonas.length > 1}
+                      searchPlaceholder="Search personas..."
+                      onSearchChange={this.handlePersonaSearchChange}
+                    >
+                      <SelectItem value="none">None</SelectItem>
+                      {filteredPersonas.length === 0 ? (
+                        <div
+                          className="px-2 py-1.5 text-sm text-center"
+                          style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
+                        >
+                          No personas found
+                        </div>
+                      ) : (
+                        filteredPersonas.map((persona) => (
+                          <SelectItem key={persona.id} value={persona.id}>
+                            {persona.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+
+              {/* Collection Selection */}
+              <div className="grid gap-2">
+                <label
+                  htmlFor="collection-select"
+                  className="text-sm font-medium"
+                  style={{ color: isDark ? '#f3f4f6' : '#111827' }}
+                >
+                  Collection <span className="text-red-500">*</span>
+                </label>
                 <Select
-                  value={selectedModelKey}
-                  onValueChange={this.handleModelChange}
-                  disabled={availableModels.length === 0}
+                  value={selectedCollectionId}
+                  onValueChange={this.handleCollectionChange}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue
-                      placeholder={
-                        availableModels.length === 0 ? 'No models available' : 'Select a model'
-                      }
-                    >
-                      {selectedModelKey && (() => {
-                        const selectedModel = availableModels.find(m => this.getModelKey(m) === selectedModelKey);
-                        return selectedModel ? `${selectedModel.name} (${selectedModel.serverName})` : selectedModelKey;
+                    <SelectValue placeholder="Select collection">
+                      {selectedCollectionId && (() => {
+                        const selectedCollection = collections.find(c => c.id === selectedCollectionId);
+                        return selectedCollection ? selectedCollection.name : selectedCollectionId;
                       })()}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent
-                    searchable={availableModels.length > 1}
-                    searchPlaceholder="Search models..."
-                    onSearchChange={this.handleModelSearchChange}
+                    searchable={collections.length > 1}
+                    searchPlaceholder="Search collections..."
+                    onSearchChange={this.handleCollectionSearchChange}
                   >
-                    {filteredModels.length === 0 ? (
+                    {filteredCollections.length === 0 ? (
                       <div
                         className="px-2 py-1.5 text-sm text-center"
                         style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
                       >
-                        No models found
+                        No collections found
                       </div>
                     ) : (
-                      filteredModels.map((model) => {
-                        const key = this.getModelKey(model);
-                        return (
-                          <SelectItem key={key} value={key}>
-                            {model.name} ({model.serverName})
-                          </SelectItem>
-                        );
-                      })
+                      filteredCollections.map((collection) => (
+                        <SelectItem key={collection.id} value={collection.id}>
+                          {collection.name}
+                        </SelectItem>
+                      ))
                     )}
                   </SelectContent>
                 </Select>
-              )}
-            </div>
-
-            {/* Persona Selection */}
-            <div className="grid gap-2">
-              <label
-                htmlFor="persona-select"
-                className="text-sm font-medium"
-                style={{ color: isDark ? '#f3f4f6' : '#111827' }}
-              >
-                Persona{' '}
-                <span style={{ color: isDark ? '#9ca3af' : '#6b7280' }}>
-                  (Optional)
-                </span>
-              </label>
-              {isLoadingPersonas ? (
-                <div
-                  className="text-sm"
-                  style={{ color: isDark ? '#9ca3af' : '#6b7280' }}
-                >
-                  Loading personas...
-                </div>
-              ) : (
-                <Select
-                  value={selectedPersonaId || 'none'}
-                  onValueChange={this.handlePersonaChange}
-                >
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="No persona (Default)">
-                      {(() => {
-                        const value = selectedPersonaId || 'none';
-                        if (value === 'none') return 'No persona (Default)';
-                        const selectedPersona = availablePersonas.find(p => p.id === value);
-                        return selectedPersona ? selectedPersona.name : value;
-                      })()}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">No persona (Default)</SelectItem>
-                    {availablePersonas.map((persona) => (
-                      <SelectItem key={persona.id} value={persona.id}>
-                        {persona.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            {/* Collection Selection */}
-            <div className="grid gap-2">
-              <label
-                htmlFor="collection-select"
-                className="text-sm font-medium"
-                style={{ color: isDark ? '#f3f4f6' : '#111827' }}
-              >
-                Collection <span className="text-red-500">*</span>
-              </label>
-              <Select
-                value={selectedCollectionId}
-                onValueChange={this.handleCollectionChange}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a collection">
-                    {selectedCollectionId && (() => {
-                      const selectedCollection = collections.find(c => c.id === selectedCollectionId);
-                      return selectedCollection ? selectedCollection.name : selectedCollectionId;
-                    })()}
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {collections.map((collection) => (
-                    <SelectItem key={collection.id} value={collection.id}>
-                      {collection.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              </div>
             </div>
 
             {/* Questions Textarea */}
@@ -503,7 +579,12 @@ export class RunEvaluationDialog extends React.Component<
                 id="questions-input"
                 value={questions}
                 onChange={this.handleQuestionsChange}
-                placeholder="Enter questions, one per line...\n\nExample:\nWhat is BrainDrive?\nHow do I upload documents?\nWhat file types are supported?"
+                placeholder={`Enter questions, one per line...
+
+Example:
+What is BrainDrive?
+How do I upload documents?
+What file types are supported?`}
                 rows={6}
                 className="resize-none"
               />
