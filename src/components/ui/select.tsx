@@ -121,30 +121,77 @@ class SelectValue extends React.Component<SelectValueProps> {
 interface SelectContentProps {
   className?: string;
   children: React.ReactNode;
+  searchable?: boolean;
+  searchPlaceholder?: string;
+  onSearchChange?: (query: string) => void;
 }
 
-class SelectContent extends React.Component<SelectContentProps> {
+interface SelectContentState {
+  searchQuery: string;
+}
+
+class SelectContent extends React.Component<SelectContentProps, SelectContentState> {
   static contextType = SelectContext;
   declare context: React.ContextType<typeof SelectContext>;
   private contentRef = React.createRef<HTMLDivElement>();
+  private searchInputRef = React.createRef<HTMLInputElement>();
+
+  constructor(props: SelectContentProps) {
+    super(props);
+    this.state = {
+      searchQuery: '',
+    };
+  }
 
   componentDidMount() {
     document.addEventListener('mousedown', this.handleClickOutside);
+    // Auto-focus search input when searchable
+    if (this.props.searchable && this.searchInputRef.current) {
+      setTimeout(() => {
+        this.searchInputRef.current?.focus();
+      }, 100);
+    }
   }
 
   componentWillUnmount() {
     document.removeEventListener('mousedown', this.handleClickOutside);
   }
 
+  componentDidUpdate(prevProps: SelectContentProps) {
+    // Focus search when dropdown opens
+    if (!prevProps.searchable && this.props.searchable && this.searchInputRef.current) {
+      this.searchInputRef.current.focus();
+    }
+
+    // Clear search when dropdown closes
+    if (prevProps.searchable && !this.context.open && this.state.searchQuery) {
+      this.setState({ searchQuery: '' });
+    }
+  }
+
   handleClickOutside = (event: MouseEvent) => {
     if (this.contentRef.current && !this.contentRef.current.contains(event.target as Node)) {
       this.context.setOpen(false);
+      this.setState({ searchQuery: '' });
     }
   };
 
+  handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const query = e.target.value;
+    this.setState({ searchQuery: query });
+    if (this.props.onSearchChange) {
+      this.props.onSearchChange(query);
+    }
+  };
+
+  handleSearchClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+  };
+
   render() {
-    const { className, children } = this.props;
+    const { className, children, searchable, searchPlaceholder = "Search..." } = this.props;
     const { open } = this.context;
+    const { searchQuery } = this.state;
 
     if (!open) return null;
 
@@ -153,11 +200,28 @@ class SelectContent extends React.Component<SelectContentProps> {
         ref={this.contentRef}
         data-slot="select-content"
         className={cn(
-          "bg-popover text-popover-foreground absolute z-50 mt-1 max-h-60 w-full min-w-[8rem] overflow-auto rounded-md border shadow-md",
+          "bg-popover text-popover-foreground absolute z-50 mt-1 max-h-60 w-full min-w-[8rem] rounded-md border shadow-md flex flex-col",
           className
         )}
       >
-        <div className="p-1">
+        {searchable && (
+          <div className="p-2 border-b" onClick={this.handleSearchClick}>
+            <input
+              ref={this.searchInputRef}
+              type="text"
+              placeholder={searchPlaceholder}
+              value={searchQuery}
+              onChange={this.handleSearchChange}
+              className="w-full px-2 py-1.5 text-sm border rounded outline-none focus:ring-1 focus:ring-blue-500"
+              style={{
+                backgroundColor: 'var(--input-bg)',
+                borderColor: 'var(--border-color)',
+                color: 'var(--text-color)',
+              }}
+            />
+          </div>
+        )}
+        <div className="p-1 overflow-auto flex-1">
           {children}
         </div>
       </div>
