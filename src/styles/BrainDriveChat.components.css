@@ -894,3 +894,46 @@
   background-color: var(--bg-color);
   transition: background-color 0.3s ease;
 }
+
+/* Collection Form */
+.collection-form-container {
+  background-color: var(--card-bg);
+  border-color: var(--card-border);
+  transition: background-color 0.3s ease, border-color 0.3s ease;
+}
+
+.collection-form-title {
+  color: var(--text-color);
+  transition: color 0.3s ease;
+}
+
+.collection-form-label {
+  color: var(--text-secondary);
+  transition: color 0.3s ease;
+}
+
+.collection-form-input {
+  background-color: var(--input-bg);
+  border-color: var(--border-color);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease;
+}
+
+.collection-form-input::placeholder {
+  color: var(--text-muted);
+}
+
+.collection-form-input:focus {
+  outline: none;
+  border-color: var(--input-focus-border);
+}
+
+.collection-form-button-cancel {
+  background-color: var(--secondary-bg);
+  color: var(--text-color);
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.collection-form-button-cancel:hover:not(:disabled) {
+  background-color: var(--hover-color);
+}

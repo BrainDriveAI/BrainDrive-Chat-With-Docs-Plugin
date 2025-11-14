@@ -24,28 +24,28 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
     const isFormValid = newCollection.name?.trim().length > 0 && newCollection.description?.trim().length > 0;
     
     return (
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-            <h3 className="text-lg font-medium mb-4">Create New Collection</h3>
+        <div className="collection-form-container rounded-lg shadow-sm border p-6 mb-6">
+            <h3 className="collection-form-title text-lg font-medium mb-4">Create New Collection</h3>
             <div className="space-y-4">
                 {/* Name Input */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Name</label>
+                    <label className="collection-form-label block text-sm font-medium mb-1">Name</label>
                     <input
                         type="text"
                         value={newCollection.name}
                         onChange={handleNameChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="collection-form-input w-full px-3 py-2 border rounded-lg"
                         placeholder="Enter collection name"
                         disabled={isCreating}
                     />
                 </div>
                 {/* Description Input */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                    <label className="collection-form-label block text-sm font-medium mb-1">Description</label>
                     <textarea
                         value={newCollection.description}
                         onChange={handleDescriptionChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="collection-form-input w-full px-3 py-2 border rounded-lg"
                         rows={3}
                         placeholder="Enter collection description"
                         disabled={isCreating}
@@ -53,22 +53,25 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
                 </div>
                 {/* Color Input */}
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">Color</label>
+                    <label className="collection-form-label block text-sm font-medium mb-1">Color</label>
                     <input
                         type="color"
                         value={newCollection.color}
                         onChange={handleColorChange}
-                        className="w-20 h-10 border border-gray-300 rounded-lg"
+                        className="collection-form-input w-20 h-10 border rounded-lg"
                         disabled={isCreating}
                     />
                 </div>
-                
+
                 {/* Actions */}
                 <div className="flex space-x-3">
                     <button
                         onClick={handleCreateCollection}
                         disabled={!isFormValid || isCreating}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center"
+                        className="text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                        style={{ backgroundColor: 'var(--button-primary-bg)' }}
+                        onMouseEnter={(e) => !isCreating && !isFormValid && (e.currentTarget.style.opacity = '0.9')}
+                        onMouseLeave={(e) => (e.currentTarget.style.opacity = '1')}
                     >
                         {isCreating ? (
                             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -79,7 +82,7 @@ export const CollectionForm: React.FC<CollectionFormProps> = ({
                     </button>
                     <button
                         onClick={handleCancelCreateForm}
-                        className="bg-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-400 transition-colors"
+                        className="collection-form-button-cancel px-4 py-2 rounded-lg transition-colors"
                         disabled={isCreating}
                     >
                         Cancel
