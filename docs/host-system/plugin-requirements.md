@@ -1,12 +1,23 @@
-# BrainDrive Plugin Naming Conventions
+# BrainDrive Host System: Plugin Requirements
 
-## For Plugin Developers: lifecycle_manager.py Configuration
+**Category:** BrainDrive Host System Integration
+**Audience:** Plugin developers
+**Source:** BrainDrive Core documentation
 
-This guide explains the **critical naming rules** you must follow in your plugin's `lifecycle_manager.py` file to avoid breaking your plugin installation and deletion.
+This document covers critical BrainDrive host system requirements for plugin development, including naming conventions and lifecycle management.
+
+**See also:**
+- `../integrations/braindrive-services.md` - Service integration patterns
+- `../integrations/module-federation.md` - Module Federation setup
+- `../decisions/001-module-federation-pattern.md` - Why Module Federation
 
 ---
 
-## Critical Rule: Plugin Name ≠ Module Name
+## 1. Plugin Naming Conventions
+
+**Required for:** `lifecycle_manager.py` configuration
+
+### Critical Rule: Plugin Name ≠ Module Name
 
 ### ❌ WRONG - This Will Break Your Plugin
 

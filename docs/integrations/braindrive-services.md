@@ -98,8 +98,37 @@ componentWillUnmount() {
 - Must remove listener on unmount (memory leak otherwise)
 - Theme object contains: `mode: 'light' | 'dark'` + color values
 - CSS variables applied to root element via `dark` class
+- ❌ DON'T use Tailwind `dark:` variant (not installed in host)
+- ✅ DO use CSS custom properties with `.dark` class selector
+
+**CSS Implementation Pattern:**
+```css
+/* Use CSS variables with .dark class selector */
+:root {
+  --bg-primary: #ffffff;
+  --text-primary: #000000;
+}
+
+.dark {
+  --bg-primary: #1a1a1a;
+  --text-primary: #ffffff;
+}
+
+.my-component {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+}
+```
+
+**DOM structure when dark mode active:**
+```html
+<html class="dark">  <!-- .dark class on <html> -->
+<body class="dark-scrollbars">  <!-- .dark-scrollbars on <body> -->
+```
 
 **Fallback:** Default to `light` theme if not available
+
+**See:** `docs/host-system/plugin-requirements.md` for more theming details
 
 ---
 

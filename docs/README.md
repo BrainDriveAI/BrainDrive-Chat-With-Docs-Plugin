@@ -41,18 +41,24 @@ docs/
 │   ├── 005-document-polling-interval.md
 │   └── 006-class-components-requirement.md
 │
-├── failures/                    # Lessons learned (what NOT to do)
-│   └── (To be added as failures are encountered)
-│
 ├── data-quirks/                 # Non-obvious data behavior
 │   ├── polling-patterns.md
 │   ├── state-management-patterns.md
 │   └── memory-leaks.md
 │
-└── integrations/                # External system gotchas
-    ├── braindrive-services.md
-    ├── external-services.md
-    └── module-federation.md
+├── integrations/                # External system gotchas
+│   ├── braindrive-services.md
+│   ├── external-services.md
+│   └── module-federation.md
+│
+├── host-system/                 # BrainDrive host system requirements
+│   └── plugin-requirements.md  # Naming conventions, lifecycle management
+│
+├── chat-with-documents-api/    # Backend API documentation
+│   └── API-REFERENCE.md        # Complete API specs for external services
+│
+└── failures/                    # Lessons learned (what NOT to do)
+    └── (To be added as failures are encountered)
 ```
 
 ---
@@ -118,6 +124,7 @@ docs/
 1. **BrainDrive Services**
    - Optional services (api, theme, settings, ai, etc.)
    - Must implement fallbacks for all services
+   - CSS theming with `.dark` class (NOT Tailwind)
    - File: `integrations/braindrive-services.md`
 
 2. **External Services**
@@ -131,6 +138,16 @@ docs/
    - React singleton enforcement critical
    - Path aliases must match webpack + tsconfig
    - File: `integrations/module-federation.md`
+
+---
+
+### Host System Requirements
+
+1. **Plugin Requirements**
+   - Plugin vs Module naming rules (CRITICAL)
+   - lifecycle_manager.py configuration
+   - Database ID collision prevention
+   - File: `host-system/plugin-requirements.md`
 
 ---
 
