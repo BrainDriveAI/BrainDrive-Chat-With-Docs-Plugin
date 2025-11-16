@@ -121,7 +121,7 @@ This lets you test how well the plugin works. Skip for now, come back later.
 
 - **Provider:** OpenAI (only option currently)
 - **API Key:** Your OpenAI API key (if you have one)
-- **Model:** `gpt-4o-mini` (recommended)
+- **Model:** `gpt-5-mini` (recommended)
 
 **Step 6:** Save & Restart**
 - Click "Save & Restart"
