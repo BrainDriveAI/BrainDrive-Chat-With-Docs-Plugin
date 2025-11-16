@@ -1,5 +1,5 @@
-# BrainDriveChat Plugin Build Script
-Write-Host "Building BrainDriveChat Plugin..." -ForegroundColor Cyan
+# BrainDriveChatWithDocs Plugin Build Script
+Write-Host "Building BrainDriveChatWithDocs Plugin..." -ForegroundColor Cyan
 
 # Check if node_modules exists, if not install dependencies
 if (-Not (Test-Path "node_modules")) {
@@ -24,4 +24,4 @@ if (Test-Path "dist/remoteEntry.js") {
     exit 1
 }
 
-Write-Host "🎉 BrainDriveChat plugin build complete!" -ForegroundColor Green
+Write-Host "🎉 BrainDriveChatWithDocs plugin build complete!" -ForegroundColor Green
