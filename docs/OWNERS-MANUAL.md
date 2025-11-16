@@ -33,21 +33,9 @@ This manual provides comprehensive guidance for using, deploying, and maintainin
 
 ### For Administrators
 
-**Optional: Verify Plugin Services Running**
+**Service Management:**
 
-After installing the plugin, you can optionally verify that the plugin's backend services are running:
-
-```bash
-# Chat With Documents Backend
-curl http://localhost:8000/health
-
-# Document Processing Service
-curl http://localhost:8080/health
-```
-
-**Both should return:** `{"status": "healthy"}`
-
-**Note:** The plugin automatically monitors these services and displays their status in the UI. BrainDrive-Core automatically downloads, builds, and runs these services when you install the plugin, and automatically starts/stops them on every BrainDrive restart.
+The plugin automatically monitors backend services and displays their status in the UI header. BrainDrive-Core automatically downloads, builds, and runs these services when you install the plugin, and automatically starts/stops them on every BrainDrive restart.
 
 ---
 
@@ -145,17 +133,7 @@ Both backend services (Chat With Docs Backend and Document Processing Service) a
 
 ### Verifying Installation
 
-**The plugin automatically monitors service health** and displays status in the UI. You can also manually verify:
-
-```bash
-# Chat With Docs Backend (automatically started by host system)
-curl http://localhost:8000/health
-
-# Document Processing Service (automatically started by host system)
-curl http://localhost:8080/health
-```
-
-**Both should return:** `{"status": "healthy"}`
+The plugin automatically monitors service health and displays status in the UI header (green = ready, red = not available).
 
 ---
 
@@ -285,48 +263,50 @@ Location: Click the Settings icon in the plugin header
 
 **Why settings are in the plugin:** This plugin's backend services (Chat With Docs Backend and Document Processing Service) run as separate applications in Docker containers, outside the BrainDrive-Core backend. These settings control environment variables (.env) for these services, which are specific to this plugin and not shared with the host system.
 
+**⚠️ IMPORTANT:** After initial plugin installation, you **must update these settings** before using the plugin (creating collections, uploading documents, chatting). Default values are set automatically, but you need to configure them properly for your environment.
+
 **Available Settings Sections:**
 
 **1. LLM Provider** 🤖
-- **Provider:** Choose LLM provider (currently: Ollama)
-- **Base URL:** Ollama server URL (e.g., http://localhost:11434)
-- **Model:** Select from available Ollama models for chat
+- **Provider:** Choose LLM provider (currently supports: **Ollama only**)
+- **Base URL:** Ollama server URL (default: `http://host.docker.internal:11434`)
+  - Use `host.docker.internal:11434` when Ollama runs on your host machine
+  - The backend service runs in Docker, so it needs this special hostname
+- **Model:** Select from dropdown (pulled from BrainDrive-Core available models)
+  - Models must be installed in Ollama first
+  - Example: llama3.2:8b, qwen3:8b, mistral:7b
 
 **2. Embedding Provider** 📊
-- **Provider:** Choose embedding provider (currently: Ollama)
-- **Base URL:** Ollama server URL for embeddings
-- **Model:** Select embedding model (e.g., mxbai-embed-large)
+- **Provider:** Choose embedding provider (currently supports: **Ollama only**)
+- **Base URL:** Ollama server URL (default: `http://host.docker.internal:11434`)
+- **Model:** Select embedding model from dropdown
+  - Example: mxbai-embed-large, nomic-embed-text
 
 **3. Contextual Retrieval** 🔍
 - **Enable Contextual Retrieval:** Uses a smaller LLM to generate context for better retrieval
-- **Base URL:** Ollama server for contextual retrieval
+- **Base URL:** Ollama server URL (default: `http://host.docker.internal:11434`)
 - **Model:** Smaller, faster model for generating chunk context
+  - Example: llama3.2:3b, phi3:3.8b
 
 **4. Evaluation Settings** ✅
-- **Provider:** Evaluation judge provider (currently: OpenAI)
+- **Provider:** Evaluation judge provider (currently supports: **OpenAI only**)
 - **API Key:** Your OpenAI API key for evaluation
-- **Model:** OpenAI model to use as judge (e.g., gpt-4o-mini)
+- **Model:** OpenAI model to use as judge (default: `gpt-4o-mini`)
+
+**Future Enhancements:**
+- Support for OpenRouter, Google Vertex AI, Anthropic Claude
+- Additional LLM providers for chat and embeddings
+- Custom API endpoint configuration
 
 **Note:** After changing settings, the plugin automatically restarts the backend services with new configuration.
 
 ### Monitoring
 
-**Health Checks:**
-
-The plugin automatically monitors service health and displays status in the UI header.
-
-You can also manually check:
-```bash
-curl http://localhost:8000/health  # Chat With Docs
-curl http://localhost:8080/health  # Document Processing
-
-# Both should return: {"status": "healthy"}
-```
-
-**Plugin Status:**
-- Open plugin → Check header for service status indicators
-- Green: All services ready
-- Red: Service not available (hover for details)
+**Service Status:**
+- The plugin automatically monitors backend services
+- Check UI header for status indicators:
+  - Green: All services ready
+  - Red: Service not available (hover for details)
 
 **Logs:**
 
@@ -339,6 +319,12 @@ docker logs -f chat-with-docs-container
 
 # Document Processing Service
 docker logs -f document-processing-container
+```
+
+**Optional Manual Health Check:**
+```bash
+curl http://localhost:8000/health  # Chat With Docs
+curl http://localhost:8080/health  # Document Processing
 ```
 
 ### Scaling
@@ -423,13 +409,26 @@ docker logs -f document-processing-container
 **Symptom:** Context window too small / responses truncated / persona not applied
 
 **Possible Causes:**
-- Selected model has limited context window
-- Context is automatically removed from the top (system prompt, previous conversation history, potentially part of retrieved relevant context)
+- Selected model has limited context window (default often 2048-4096 tokens for Ollama)
+- Context is automatically removed from the top when limit reached:
+  - System prompt (~1,000 tokens)
+  - Conversation history (~1,600 tokens)
+  - Retrieved context (~3,600 tokens)
+  - Response buffer (~1,200 tokens)
 
 **Solutions:**
-1. Use a different LLM model with higher context window
+1. Use a different LLM model with higher context window (8K+ recommended)
 2. Start a new conversation (clears history)
-3. For specific persona issues, see discussion: https://community.braindrive.ai/t/ollama-parameter-mapping-fixed-personas-now-apply-correctly/175
+3. Check that persona settings are properly mapped (see Future Enhancements)
+
+**Related Discussion:** The issue of Ollama parameter mapping and persona configuration is being addressed. See: https://community.braindrive.ai/t/ollama-parameter-mapping-fixed-personas-now-apply-correctly/175
+
+**Future RAG Optimizations (Planned):**
+- **Chunk Size Reduction:** Optimize retrieval for 8K+ token models
+- **Dynamic Chunk Retrieval:** Adjust returned chunks based on model capabilities
+- **Reverse Chunk Ordering:** Place most relevant content last to prevent top-stripping
+- **Context Normalization:** Better allocation across system prompts, history, retrieved context, and response buffer
+- **Customizable Token Budgets:** Allow users to configure context allocation
 
 ### Performance Issues
 
