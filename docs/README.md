@@ -53,7 +53,8 @@ docs/
 │   └── module-federation.md
 │
 ├── host-system/                 # BrainDrive host system requirements
-│   └── plugin-requirements.md  # Naming conventions, lifecycle management
+│   ├── plugin-requirements.md  # Naming conventions, lifecycle management
+│   └── service-runtime-requirements.md  # Backend service auto-installation
 │
 ├── chat-with-documents-api/    # Backend API documentation
 │   └── API-REFERENCE.md        # Complete API specs for external services
@@ -156,6 +157,13 @@ docs/
    - lifecycle_manager.py configuration
    - Database ID collision prevention
    - File: `host-system/plugin-requirements.md`
+
+2. **Service Runtime Requirements**
+   - Automatic backend service installation
+   - Declarative service requirements in lifecycle_manager.py
+   - Environment variable integration with settings
+   - Service startup/shutdown lifecycle
+   - File: `host-system/service-runtime-requirements.md`
 
 ---
 

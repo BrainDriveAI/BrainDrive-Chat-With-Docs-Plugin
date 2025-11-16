@@ -297,6 +297,108 @@ When adding TODO to PR, use Github checkbox markdown:
 - End each plan with list of unresolved questions (if any)
 - Questions should be extremely concise
 
+## Backend Service Runtime Management
+
+**This plugin requires two backend services that are automatically managed by BrainDrive-Core.**
+
+### Service Definitions in lifecycle_manager.py
+
+Services are declared in `lifecycle_manager.py` (lines 130-186):
+
+```python
+self.required_services_runtime = [
+    {
+        "name": "cwyd_service",
+        "source_url": "https://github.com/BrainDriveAI/chat-with-your-documents",
+        "type": "docker-compose",
+        "install_command": "docker compose build",
+        "start_command": "docker compose up -d",
+        "healthcheck_url": "http://localhost:8000/health",
+        "definition_id": self.settings_definition_id,
+        "required_env_vars": ["LLM_PROVIDER", "EMBEDDING_PROVIDER", ...]
+    },
+    {
+        "name": "document_processing_service",
+        "source_url": "https://github.com/BrainDriveAI/Document-Processing-Service",
+        "type": "docker-compose",
+        "install_command": "docker compose build",
+        "start_command": "docker compose up -d",
+        "healthcheck_url": "http://localhost:8080/health",
+        "definition_id": self.settings_definition_id,
+        "required_env_vars": ["DISABLE_AUTH", "SPACY_MODEL", ...]
+    }
+]
+```
+
+### How It Works
+
+**On Plugin Installation:**
+1. Host system reads `lifecycle_manager.py`
+2. Extracts `required_services_runtime` (via `remote_installer.py`)
+3. Creates database records in `plugin_service_runtime` table
+4. Asynchronously clones repos, builds Docker images, starts services
+5. Plugin available immediately (services build in background)
+
+**On Host Startup:**
+1. `main.py` lifespan calls `start_plugin_services_from_settings_on_startup()`
+2. Fetches user settings using `definition_id`
+3. Updates service `.env` files with `required_env_vars`
+4. Executes `start_command` for each service
+5. Verifies via `healthcheck_url`
+
+**On Host Shutdown:**
+1. `main.py` lifespan finally block calls `stop_all_plugin_services_on_shutdown()`
+2. Executes stop command for each service (graceful shutdown)
+
+### When to Modify Service Runtime
+
+**Add new environment variable:**
+1. Add to `required_env_vars` array in `lifecycle_manager.py`
+2. Add to `default_settings_value` in `_create_settings()` method
+3. Update service repository's `.env.example` and `docker-compose.yml`
+
+**Add new service:**
+1. Add new object to `required_services_runtime` array
+2. Ensure service repo has `docker-compose.yml` and health endpoint
+3. Test installation, startup, shutdown flows
+
+**Change service port:**
+1. Update `healthcheck_url` in service definition
+2. Update constants in `src/constants.ts` (CHAT_SERVICE_API_BASE, etc.)
+3. Ensure port not conflicting with other services
+
+### Testing Service Integration
+
+```bash
+# 1. Install plugin via BrainDrive UI
+# 2. Check service status in database
+sqlite3 braindrive.db "SELECT name, status FROM plugin_service_runtime;"
+
+# 3. Verify services running
+docker ps | grep cwyd
+docker ps | grep document_processing
+
+# 4. Check health endpoints
+curl http://localhost:8000/health
+curl http://localhost:8080/health
+
+# 5. Restart host system
+# Verify services restart automatically
+
+# 6. Uninstall plugin
+# Verify services stopped and database records deleted
+```
+
+### Important Files
+
+- `lifecycle_manager.py` (lines 130-186) - Service definitions
+- `lifecycle_manager.py` (lines 900-1061) - Settings creation with env vars
+- `docs/host-system/service-runtime-requirements.md` - Complete technical guide
+- Host system: `backend/main.py` - Lifespan management
+- Host system: `backend/app/plugins/service_installler/start_stop_plugin_services.py` - Start/stop logic
+
+**See `docs/host-system/service-runtime-requirements.md` for complete documentation.**
+
 ## Compounding Engineering (Knowledge Documentation)
 
 **Core principle:** Every session compounds knowledge for future developers/AI agents.
