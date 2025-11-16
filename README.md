@@ -147,11 +147,30 @@ npm run start
 - Live reload with real data
 
 *Option B: Manual Build*
+
+**Using Build Scripts (Recommended):**
 ```bash
-npm run build  # or ./build.sh
+# Linux/Mac
+./build.sh
+
+# Windows (PowerShell)
+.\build.ps1
 ```
-- Output: `dist/remoteEntry.js`
-- Copy to BrainDrive plugins directory or install via UI
+
+**Or using npm directly:**
+```bash
+npm run build
+```
+
+**What these scripts do:**
+- Check and install dependencies if needed
+- Clean previous build artifacts
+- Build the plugin to `dist/remoteEntry.js`
+- Verify build succeeded
+
+**After building:**
+- Copy `dist/remoteEntry.js` to BrainDrive plugins directory, or
+- Install via BrainDrive UI (recommended)
 - Requires rebuild for changes
 
 ### Testing in BrainDrive
