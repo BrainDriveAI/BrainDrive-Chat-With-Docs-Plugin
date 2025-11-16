@@ -213,6 +213,8 @@ Think of it like a folder. You put related documents in one collection.
 - HTML/XML files (`.html`, `.xml`)
 - JSON files (`.json`)
 
+**💡 Tip:** DOCX and Markdown (`.md`) files are processed **much faster** than PDFs. If you have the choice, prefer these formats for quicker processing.
+
 **How to Upload**
 1. Open a collection
 2. Click "Project files"
@@ -266,15 +268,20 @@ Think of it like a folder. You put related documents in one collection.
 **Choosing a Model**
 Different AI models have different strengths:
 
-- **Fast models** (3B-8B parameters):
-  - Examples: `llama3.2:8b`, `phi3:3.8b`
-  - Good for: Simple questions, quick answers
+- **Fast models** (1B-8B parameters):
+  - Examples: `gemma3:4b`, `phi-4:14b`, `mistral:7b`
+  - Good for: Simple questions, quick answers, resource-constrained devices
   - Speed: Very fast (1-2 seconds)
 
-- **Powerful models** (13B-70B parameters):
-  - Examples: `llama3:70b`, `mixtral:8x7b`
-  - Good for: Complex questions, detailed analysis
-  - Speed: Slower (5-30 seconds)
+- **Balanced models** (8B-14B parameters):
+  - Examples: `llama3.2:8b`, `qwen2.5:14b`, `gemma3:12b`
+  - Good for: Daily use, general questions, good speed/quality trade-off
+  - Speed: Fast (2-5 seconds)
+
+- **Powerful models** (70B+ parameters):
+  - Examples: `llama3.3:70b`, `qwen2.5:72b`, `deepseek-r1:70b`
+  - Good for: Complex reasoning, detailed analysis, long documents
+  - Speed: Slower (10-60 seconds, needs 32GB+ RAM)
 
 **Starting New Conversations**
 - Click the conversation dropdown (top of chat)
@@ -420,7 +427,7 @@ This plugin's backend services run separately in Docker containers. These settin
 
 ### Evaluation Settings ✅
 
-**What This Does:** Configures automatic testing/evaluation.
+**What This Does:** Configures testing/evaluation.
 
 **Settings:**
 - **Provider:** OpenAI (currently the only option)
@@ -459,7 +466,8 @@ These providers will be supported soon:
 2. Wait 1-2 minutes after starting BrainDrive
    - Services take time to start
 3. Restart BrainDrive-Core:
-   - Close and reopen the application
+   - Stop the backend from your terminal/PowerShell/command prompt (Ctrl+C)
+   - Restart with `uvicorn main:app --host localhost --port 8005` (or check BrainDrive-Core docs)
 4. Check Docker logs (advanced):
    ```bash
    docker ps
@@ -503,6 +511,15 @@ These providers will be supported soon:
 3. **Simplify Your Question**
    - Ask shorter, more focused questions
    - Break complex questions into multiple simple ones
+
+4. **Create a Persona with Custom Context Window**
+   - Go to BrainDrive personas settings
+   - Create a new persona (with or without system prompt)
+   - Set the context window parameter (e.g., 16384 for 16K, 32768 for 32K)
+   - Select that persona when chatting
+   - The persona's config will overwrite the default Ollama context window
+
+   **Tip:** Run `ollama show <model_name>` in your terminal to check the maximum context length for any model.
 
 **Token Breakdown (Where Space Goes):**
 - System prompt: ~1,000 tokens
@@ -590,17 +607,35 @@ This is being actively worked on. See: [Parameter Mapping Fix](https://community
 
 ### Model Selection
 
-**For Daily Use:**
-- `llama3.2:8b` - Good balance of speed and quality
-- `qwen3:8b` - Similar to Llama, try both
+**Recommended Models by Hardware (November 2025)**
 
-**For Complex Questions:**
-- `mixtral:8x7b` - Excellent for reasoning
-- `llama3:70b` - Very powerful but slower
+**8GB RAM Devices:**
+- `gemma3:4b` - Balanced performance, multimodal (text + images), 128K context
+- `phi-4:14b` - Optimized for edge devices, excellent efficiency
+- `llama3.2:8b` - Reliable general-purpose model, 8K context
+- `mistral:7b` - Fast workhorse for general tasks
+- `gemma3:1b` - Extremely lightweight for resource-constrained devices
 
-**For Quick Lookups:**
-- `llama3.2:3b` - Very fast, good for simple questions
-- `phi3:3.8b` - Fast and efficient
+**16GB RAM Devices:**
+- `qwen2.5:14b` - Strong general performance
+- `qwen2.5-coder:7b` - Best for coding tasks (80-120 tokens/sec)
+- `gemma3:12b` - Multimodal with excellent multilingual support
+- `deepseek-coder:7b` - Alternative coding model, supports 87+ languages
+
+**32GB+ RAM Devices:**
+- `llama3.3:70b` - Top-tier reasoning and deep analysis, 128K context
+- `qwen2.5:72b` - High-performance complex reasoning
+- `qwen2.5-coder:32b` - Production-grade coding (competitive with GPT-4o)
+- `deepseek-r1:70b` - Advanced reasoning model approaching GPT-4 performance
+- `gemma3:27b` - Multimodal powerhouse with 128K context
+- `deepseek-coder:33b` - Complex coding tasks (45-60 tokens/sec)
+
+**For Specific Use Cases:**
+- **Coding:** `qwen2.5-coder`, `deepseek-coder`
+- **Fast responses:** `phi-4`, `mistral:7b`, `gemma3:4b`
+- **Multilingual:** `gemma3` (140+ languages)
+- **Multimodal (text + images):** `gemma3:4b/12b/27b`
+- **Long context:** `llama3.3:70b`, `gemma3` (128K tokens)
 
 ### Maintaining Good Performance
 
