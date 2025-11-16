@@ -33,15 +33,21 @@ This manual provides comprehensive guidance for using, deploying, and maintainin
 
 ### For Administrators
 
-**Prerequisites Check:**
+**Optional: Verify Plugin Services Running**
+
+After installing the plugin, you can optionally verify that the plugin's backend services are running:
+
 ```bash
-# Verify all 3 backend services are running
-curl http://localhost:8005/health  # BrainDrive Core
-curl http://localhost:8000/health  # Chat With Documents Backend
-curl http://localhost:8080/health  # Document Processing Service
+# Chat With Documents Backend
+curl http://localhost:8000/health
+
+# Document Processing Service
+curl http://localhost:8080/health
 ```
 
-**All should return:** `{"status": "healthy"}`
+**Both should return:** `{"status": "healthy"}`
+
+**Note:** The plugin automatically monitors these services and displays their status in the UI. BrainDrive-Core automatically downloads, builds, and runs these services when you install the plugin, and automatically starts/stops them on every BrainDrive restart.
 
 ---
 
@@ -119,11 +125,15 @@ Both backend services (Chat With Docs Backend and Document Processing Service) a
 ### For End Users
 
 **Plugin Installation:**
-1. Open BrainDrive-Core application
-2. Navigate to Settings → Plugins
+1. Open BrainDrive-Core at `http://localhost:5173`
+2. Click "Plugin Manager" in the left panel
 3. Click "Install Plugin"
-4. Enter plugin URL or select from marketplace
-5. Click "Install"
+4. Paste the plugin's GitHub repository URL:
+   ```
+   https://github.com/BrainDriveAI/BrainDrive-Chat-With-Docs-Plugin
+   ```
+5. Select the release version from the dropdown
+6. Click "Install" button
 
 **That's it!** The host system (BrainDrive-Core) will automatically:
 - Download and build required backend services (Chat With Docs Backend & Document Processing Service)
@@ -135,11 +145,9 @@ Both backend services (Chat With Docs Backend and Document Processing Service) a
 
 ### Verifying Installation
 
-**Check all services are running:**
-```bash
-# BrainDrive Core Backend (should already be running)
-curl http://localhost:8005/health
+**The plugin automatically monitors service health** and displays status in the UI. You can also manually verify:
 
+```bash
 # Chat With Docs Backend (automatically started by host system)
 curl http://localhost:8000/health
 
@@ -147,7 +155,7 @@ curl http://localhost:8000/health
 curl http://localhost:8080/health
 ```
 
-**All should return:** `{"status": "healthy"}`
+**Both should return:** `{"status": "healthy"}`
 
 ---
 
@@ -202,8 +210,8 @@ curl http://localhost:8080/health
 1. Select collection
 2. Type question in input box
 3. Press Enter or click Send
-4. View retrieved context (gray boxes above response)
-5. Read AI response
+4. View retrieved context (gray boxes below response)
+5. Read AI response (streams by default, word-by-word)
 
 **Advanced Features:**
 
@@ -219,10 +227,6 @@ curl http://localhost:8080/health
 - Select role (e.g., "Code Reviewer", "Project Manager")
 - AI responds according to persona instructions
 
-**Streaming Toggle:**
-- Enable: See response as it's generated (word-by-word)
-- Disable: Wait for complete response
-
 **Conversation History:**
 - Click conversation dropdown
 - Select previous chat session
@@ -233,6 +237,7 @@ curl http://localhost:8080/health
 
 **What is it?**
 - Gray boxes showing document chunks relevant to your question
+- Displayed below the AI response
 - Sorted by relevance score
 - Shows source document and chunk number
 
@@ -247,17 +252,26 @@ curl http://localhost:8080/health
 
 **Usage:**
 1. Click "Evaluation" tab
-2. Enter test questions (one per line, 1-100 questions)
-3. Select LLM model
-4. Click "Start Evaluation"
-5. Wait for completion (progress shown)
-6. View results (answer quality, retrieval accuracy)
+2. Select LLM model (required) - The model that will generate answers
+3. Select persona (optional) - Role/style for the AI responses
+4. Select collection (required) - Documents to query against
+5. Enter or paste test questions related to your selected collection
+   - One question per line
+   - 1-100 questions supported
+6. Click "Start Evaluation"
+7. Wait for completion (progress shown)
+8. View results (answer quality, retrieval accuracy)
 
 **Best Practices:**
 - Start with 5-10 questions to test
-- Use representative questions (actual use cases)
+- Use representative questions (actual use cases for your documents)
 - Compare different models/settings
-- Export results for analysis
+- Questions should be relevant to the selected collection
+
+**Future Enhancements / Contribution Ideas:**
+- Export evaluation results to CSV/JSON
+- Historical evaluation comparison
+- Automated test suite generation
 
 ---
 
@@ -267,60 +281,46 @@ curl http://localhost:8080/health
 
 **Plugin Settings:**
 
-Location: BrainDrive Settings → Plugins → Chat With Docs → Settings
+Location: Click the Settings icon in the plugin header
 
-**Available Settings:**
-- **LLM Provider:** Default LLM for chat (Ollama, OpenAI, Claude, etc.)
-- **Embedding Provider:** Model for document embeddings
-- **API Base URLs:** Override default ports if needed
-- **Contextual Retrieval:** Enable advanced retrieval techniques
-- **Search Config:** RAG search parameters (top_k, hybrid search, etc.)
+**Why settings are in the plugin:** This plugin's backend services (Chat With Docs Backend and Document Processing Service) run as separate applications in Docker containers, outside the BrainDrive-Core backend. These settings control environment variables (.env) for these services, which are specific to this plugin and not shared with the host system.
 
-**Backend Configuration:**
+**Available Settings Sections:**
 
-**Chat With Documents Backend (`.env`):**
-```env
-# Server
-PORT=8000
-HOST=0.0.0.0
+**1. LLM Provider** 🤖
+- **Provider:** Choose LLM provider (currently: Ollama)
+- **Base URL:** Ollama server URL (e.g., http://localhost:11434)
+- **Model:** Select from available Ollama models for chat
 
-# Database
-DATABASE_URL=postgresql://user:pass@localhost/cwyd_db
+**2. Embedding Provider** 📊
+- **Provider:** Choose embedding provider (currently: Ollama)
+- **Base URL:** Ollama server URL for embeddings
+- **Model:** Select embedding model (e.g., mxbai-embed-large)
 
-# Vector Store
-VECTOR_STORE=chroma  # or pinecone, weaviate
-CHROMA_PATH=./chroma_db
+**3. Contextual Retrieval** 🔍
+- **Enable Contextual Retrieval:** Uses a smaller LLM to generate context for better retrieval
+- **Base URL:** Ollama server for contextual retrieval
+- **Model:** Smaller, faster model for generating chunk context
 
-# LLM
-DEFAULT_LLM_PROVIDER=ollama
-OLLAMA_BASE_URL=http://localhost:11434
-```
+**4. Evaluation Settings** ✅
+- **Provider:** Evaluation judge provider (currently: OpenAI)
+- **API Key:** Your OpenAI API key for evaluation
+- **Model:** OpenAI model to use as judge (e.g., gpt-4o-mini)
 
-**Document Processing Service (`.env`):**
-```env
-# Server
-PORT=8080
-HOST=0.0.0.0
-
-# Processing
-MAX_FILE_SIZE_MB=10
-CHUNK_SIZE=512
-CHUNK_OVERLAP=50
-
-# Embeddings
-EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-```
+**Note:** After changing settings, the plugin automatically restarts the backend services with new configuration.
 
 ### Monitoring
 
 **Health Checks:**
+
+The plugin automatically monitors service health and displays status in the UI header.
+
+You can also manually check:
 ```bash
-# Check all services
-curl http://localhost:8005/health  # BrainDrive Core
 curl http://localhost:8000/health  # Chat With Docs
 curl http://localhost:8080/health  # Document Processing
 
-# All should return: {"status": "healthy"}
+# Both should return: {"status": "healthy"}
 ```
 
 **Plugin Status:**
@@ -332,40 +332,13 @@ curl http://localhost:8080/health  # Document Processing
 
 **Plugin logs:** Browser console (F12 → Console tab)
 
-**Backend logs:**
-- Chat With Docs: Check terminal where service is running
-- Document Processing: Check terminal where service is running
-
-### Backup & Recovery
-
-**What to Backup:**
-1. **Collections metadata:** Database (PostgreSQL)
-2. **Documents:** File storage directory
-3. **Embeddings:** Vector store (Chroma DB directory)
-4. **Configuration:** `.env` files
-
-**Backup Commands:**
+**Backend logs (Docker containers):**
 ```bash
-# Database backup
-pg_dump cwyd_db > backup_$(date +%Y%m%d).sql
+# Chat With Docs Backend
+docker logs -f chat-with-docs-container
 
-# Document storage
-tar -czf documents_$(date +%Y%m%d).tar.gz /path/to/document/storage
-
-# Vector store
-tar -czf embeddings_$(date +%Y%m%d).tar.gz /path/to/chroma_db
-```
-
-**Recovery:**
-```bash
-# Restore database
-psql cwyd_db < backup_20251114.sql
-
-# Restore documents
-tar -xzf documents_20251114.tar.gz -C /path/to/restore
-
-# Restore embeddings
-tar -xzf embeddings_20251114.tar.gz -C /path/to/restore
+# Document Processing Service
+docker logs -f document-processing-container
 ```
 
 ### Scaling
@@ -446,6 +419,17 @@ tar -xzf embeddings_20251114.tar.gz -C /path/to/restore
 3. Use persona to guide response style
 4. Rephrase question
 5. Break complex questions into smaller ones
+
+**Symptom:** Context window too small / responses truncated / persona not applied
+
+**Possible Causes:**
+- Selected model has limited context window
+- Context is automatically removed from the top (system prompt, previous conversation history, potentially part of retrieved relevant context)
+
+**Solutions:**
+1. Use a different LLM model with higher context window
+2. Start a new conversation (clears history)
+3. For specific persona issues, see discussion: https://community.braindrive.ai/t/ollama-parameter-mapping-fixed-personas-now-apply-correctly/175
 
 ### Performance Issues
 
@@ -702,18 +686,6 @@ npm install
 npm run build
 
 # Restart plugin (via BrainDrive Plugin Manager)
-```
-
-**Backend Service Updates:**
-```bash
-# Pull latest code
-git pull origin main
-
-# Update dependencies
-pip install -r requirements.txt
-
-# Restart service
-# (stop current process, run: python main.py)
 ```
 
 ### Security
