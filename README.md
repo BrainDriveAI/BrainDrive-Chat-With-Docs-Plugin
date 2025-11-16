@@ -15,6 +15,21 @@ This plugin provides a complete document chat interface within BrainDrive. Uploa
 - **Frontend:** Document upload UI, collections management, and chat interface (this plugin)
 - **Backend Services:** [Document Chat Service](https://github.com/BrainDriveAI/Document-Chat-Service) (port 8000) and [Document Processing Service](https://github.com/BrainDriveAI/Document-Processing-Service) (port 8080)—both auto-installed via Docker
 
+## Quick Start
+
+**⚠️ IMPORTANT - First-Time Setup:**
+
+After installing the plugin, you **must update the plugin settings** before using it:
+
+1. Wait for backend services to be ready (green status indicators in UI)
+2. Click the ⚙️ Settings icon in the plugin header
+3. Configure LLM provider, embedding model, and other settings
+4. Click "Save Settings"
+
+**Default values are set automatically, but you need to configure them properly for your environment before creating collections, uploading documents, or chatting.**
+
+See the [Owner's Manual](docs/OWNERS-MANUAL.md) for detailed setup instructions.
+
 ## Features
 
 - **Document Collections** – Organize documents into separate chat contexts
@@ -27,30 +42,63 @@ This plugin provides a complete document chat interface within BrainDrive. Uploa
 
 ## Architecture
 
-### Core Files
+### Project Structure
 
-**Main Component**
-- `src/BrainDriveChatWithDocs.tsx` – Root component managing Collections and Chat views
+```
+src/
+├── BrainDriveChatWithDocs.tsx          # Main plugin component
+├── index.tsx                            # Plugin entry point
+├── constants.ts                         # Configuration and defaults
+├── types.ts                             # Shared type definitions
+├── braindrive-plugin/                   # Plugin service layer
+│   ├── PluginService.ts                 # Core orchestrator
+│   ├── DataRepository.ts                # API communication
+│   ├── HealthCheckService.ts            # Service monitoring
+│   ├── PluginHeader.tsx                 # Header component
+│   └── pluginTypes.ts                   # Plugin-specific types
+├── collection-view/                     # Collections management
+│   ├── CollectionViewShell.tsx          # Main collections view
+│   ├── CollectionsList.tsx              # Collections list
+│   ├── CollectionForm.tsx               # Create/edit form
+│   └── CollectionService.ts             # Collection API calls
+├── collection-chat-view/                # Chat interface
+│   ├── CollectionChatViewShell.tsx      # Main chat view
+│   ├── components/                      # Chat UI components
+│   │   ├── ChatHeader.tsx
+│   │   ├── ChatHistory.tsx
+│   │   ├── ChatInput.tsx
+│   │   └── RetrievedChunksPreview.tsx
+│   └── chatViewTypes.ts
+├── components/                          # Shared components
+│   ├── plugin-settings/                 # Settings configuration
+│   ├── collection-chat-view/            # Chat-specific components
+│   └── ui/                              # Reusable UI components
+├── domain/                              # Domain logic
+│   ├── chat/                            # Chat business logic
+│   ├── conversations/                   # Conversation management
+│   ├── models/                          # Model handling
+│   └── __tests__/                       # Unit tests
+├── infrastructure/                      # Infrastructure layer
+│   ├── http/                            # HTTP client
+│   ├── repositories/                    # Data repositories
+│   └── __tests__/                       # Infrastructure tests
+└── services/                            # Service layer
+    ├── aiService.ts                     # AI communication
+    ├── documentService.ts               # Document operations
+    └── documentPolling.ts               # Status polling
 
-**Plugin Service Layer**
-- `src/braindrive-plugin/PluginService.ts` – Core logic and state management
-- `src/braindrive-plugin/DataRepository.ts` – API calls to backend services
-- `src/braindrive-plugin/HealthCheckService.ts` – Service health monitoring
-
-**Views**
-- `src/collection-view/` – Collections list and creation UI
-- `src/collection-chat-view/` – Chat interface with header, history, and input components
-- `src/document-view/DocumentManagerModal.tsx` – Document upload and management modal
-
-**Key Services**
-- `src/services/aiService.ts` – Chat message handling and streaming responses
-- `src/services/documentPolling.ts` – Document processing status checks
-- `src/document-view/DocumentService.ts` – File upload/delete operations
-- `src/collection-view/CollectionService.ts` – Collection management
-
-**Configuration**
-- `src/types.ts` & `src/braindrive-plugin/pluginTypes.ts` – Type definitions
-- `src/constants.ts` – File config, limits, and default settings
+docs/
+├── OWNERS-MANUAL.md                     # User guide
+├── AI-AGENT-GUIDE.md                    # AI agent instructions
+├── README.md                            # Documentation index
+├── decisions/                           # Architecture decisions (ADRs)
+├── data-quirks/                         # Non-obvious behaviors
+├── integrations/                        # External system docs
+├── host-system/                         # BrainDrive integration
+│   ├── plugin-requirements.md           # Naming conventions
+│   └── service-runtime-requirements.md  # Service management
+└── chat-with-documents-api/             # Backend API reference
+```
 
 ### Data Flow
 
@@ -99,11 +147,30 @@ npm run start
 - Live reload with real data
 
 *Option B: Manual Build*
+
+**Using Build Scripts (Recommended):**
 ```bash
-npm run build  # or ./build.sh
+# Linux/Mac
+./build.sh
+
+# Windows (PowerShell)
+.\build.ps1
 ```
-- Output: `dist/remoteEntry.js`
-- Copy to BrainDrive plugins directory or install via UI
+
+**Or using npm directly:**
+```bash
+npm run build
+```
+
+**What these scripts do:**
+- Check and install dependencies if needed
+- Clean previous build artifacts
+- Build the plugin to `dist/remoteEntry.js`
+- Verify build succeeded
+
+**After building:**
+- Copy `dist/remoteEntry.js` to BrainDrive plugins directory, or
+- Install via BrainDrive UI (recommended)
 - Requires rebuild for changes
 
 ### Testing in BrainDrive

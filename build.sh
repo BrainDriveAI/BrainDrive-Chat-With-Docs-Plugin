@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# BrainDriveChat Plugin Build Script
-echo "Building BrainDriveChat Plugin..."
+# BrainDriveChatWithDocs Plugin Build Script
+echo "Building BrainDriveChatWithDocs Plugin..."
 
 # Check if node_modules exists, if not install dependencies
 if [ ! -d "node_modules" ]; then
@@ -26,4 +26,4 @@ else
     exit 1
 fi
 
-echo "🎉 BrainDriveChat plugin build complete!"
+echo "🎉 BrainDriveChatWithDocs plugin build complete!"
