@@ -3,31 +3,31 @@
 **What is this?** A plugin that lets you chat with your documents using AI. Upload PDFs, Word files, or other documents, then ask questions and get answers based on what's actually in those documents.
 
 **Version:** 1.0
-**Last Updated:** January 2025
+**Last Updated:** November 16, 2025
 
 ---
 
 ## Table of Contents
 
-**Getting Started** (New users start here!)
+### Getting Started (New users start here!)
 1. [What You Need](#what-you-need)
 2. [Installing the Plugin](#installing-the-plugin)
 3. [First-Time Setup](#first-time-setup)
 4. [Your First Chat](#your-first-chat)
 
-**Using the Plugin**
+### Using the Plugin
 5. [Working with Collections](#working-with-collections)
 6. [Uploading Documents](#uploading-documents)
 7. [Chatting with Your Documents](#chatting-with-your-documents)
 8. [Understanding Results](#understanding-results)
 9. [Testing Your Setup (Evaluation)](#testing-your-setup-evaluation)
 
-**Configuration & Management**
+### Configuration & Management
 10. [Plugin Settings](#plugin-settings)
 11. [When Things Go Wrong](#when-things-go-wrong)
 12. [Tips & Best Practices](#tips--best-practices)
 
-**For Technical Users**
+### For Technical Users
 13. [How It Works (Architecture)](#how-it-works-architecture)
 14. [Developer Information](#developer-information)
 15. [Advanced Topics](#advanced-topics)
@@ -123,10 +123,13 @@ This lets you test how well the plugin works. Skip for now, come back later.
 - **API Key:** Your OpenAI API key (if you have one)
 - **Model:** `gpt-4o-mini` (recommended)
 
-**Step 6:** Save**
-- Click "Save Settings"
+**Step 6:** Save & Restart**
+- Click "Save & Restart"
+- This saves settings to the database AND restarts the Docker containers with new environment variables
 - Wait for "Settings saved successfully" message
-- The plugin will restart its backend services automatically
+- Services will restart automatically (takes 10-30 seconds)
+
+**Note:** If you click "Save Settings" without restart, settings are saved but Docker containers won't get the new values until next BrainDrive restart.
 
 **You're ready!** The status indicators at the top should now be green.
 
@@ -424,7 +427,7 @@ This plugin's backend services run separately in Docker containers. These settin
 - **API Key:** Your OpenAI API key
   - Get one at [platform.openai.com](https://platform.openai.com)
   - Costs money (usually pennies per evaluation)
-- **Model:** `gpt-4o-mini`
+- **Model:** `gpt-5-mini`
   - This model judges your answers
   - Don't use a model from Ollama here
 
@@ -768,7 +771,11 @@ self.required_services_runtime = [
 3. **Test installation and startup flows**
 4. **Update documentation**
 
-**Complete Guide:** See `docs/host-system/service-runtime-requirements.md`
+**Complete Guide:** See [Service Runtime Requirements](host-system/service-runtime-requirements.md)
+
+**Additional Resources:**
+- [Plugin Naming Conventions](host-system/plugin-requirements.md)
+- [FOR-AI-CODING-AGENTS.md](../FOR-AI-CODING-AGENTS.md)
 
 ---
 
@@ -832,7 +839,9 @@ docker logs -f CONTAINER_NAME
 ---
 
 **Need Help?**
-- 📖 Full developer docs: `FOR-AI-CODING-AGENTS.md`
-- 🔧 Technical architecture: `docs/host-system/service-runtime-requirements.md`
+- 📖 Full developer docs: [FOR-AI-CODING-AGENTS.md](../FOR-AI-CODING-AGENTS.md)
+- 🔧 Technical architecture: [Service Runtime Requirements](host-system/service-runtime-requirements.md)
+- 📋 Plugin naming conventions: [Plugin Requirements](host-system/plugin-requirements.md)
+- 📚 Documentation index: [docs/README.md](README.md)
 - 💬 Community: [BrainDrive Community Forums](https://community.braindrive.ai)
 - 🐛 Report bugs: [GitHub Issues](https://github.com/BrainDriveAI/BrainDrive-Chat-With-Docs-Plugin/issues)
